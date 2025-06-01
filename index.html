@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EliteControl - Login</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .login-container {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-logo {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .login-title {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-subtitle {
+            color: #94A3B8;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #F1F5F9;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            background-color: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: #F1F5F9;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #38BDF8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+        }
+
+        .form-input::placeholder {
+            color: #94A3B8;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #FCA5A5;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .login-help {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .login-help p {
+            color: #94A3B8;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-help ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .login-help li {
+            color: #F1F5F9;
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .login-help li::before {
+            content: "•";
+            color: #38BDF8;
+            position: absolute;
+            left: 0;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #94A3B8;
+            font-size: 0.875rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-logo">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h1 class="login-title">EliteControl</h1>
+            <p class="login-subtitle">Seu sistema de gestão inteligente</p>
+        </div>
+        
+        <form id="loginForm" class="login-form">
+            <div class="form-group">
+                <label for="perfil" class="form-label">Setor / Cargo</label>
+                <select id="perfil" name="perfil" class="form-select" required>
+                    <option value="">Selecione seu perfil</option>
+                    <option value="Dono/Gerente">Dono/Gerente</option>
+                    <option value="Controlador de Estoque">Controlador de Estoque</option>
+                    <option value="Vendedor">Vendedor</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="Seu email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">Senha</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="Sua senha" required>
+            </div>
+            
+            <div id="loginErrorMessage" class="login-error hidden"></div>
+            
+            <div class="form-group">
+                <button type="submit" class="btn-primary">Entrar</button>
+            </div>
+            
+            <div class="login-help">
+                <p>Credenciais para teste:</p>
+                <ul>
+                    <li><strong>Dono/Gerente:</strong> admin@elitecontrol.com / admin123</li>
+                    <li><strong>Estoque:</strong> estoque@elitecontrol.com / estoque123</li>
+                    <li><strong>Vendedor:</strong> vendas@elitecontrol.com / vendas123</li>
+                </ul>
+            </div>
+        </form>
+        
+        <div class="login-footer">
+            &copy; 2025 EliteControl. Todos os direitos reservados.
+        </div>
+    </div>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/firebase-service.js"></script> 
+    <script src="js/main.js"></script>
+</body>
+</html>

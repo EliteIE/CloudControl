@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EliteControl - Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Estilos específicos do modal */
+        .modal-backdrop.hidden {
+            display: none !important;
+        }
+        
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 1rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-backdrop.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+            border-radius: 1rem;
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 500px;
+            transform: scale(0.95);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        .modal-content.show {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #F1F5F9;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #94A3B8;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s ease;
+        }
+        
+        .modal-close:hover {
+            color: #F1F5F9;
+            background: rgba(51, 65, 85, 0.5);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding: 1.5rem;
+            border-top: 1px solid rgba(51, 65, 85, 0.5);
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #F1F5F9;
+        }
+        
+        .form-input {
+            width: 100%;
+            background-color: rgba(51, 65, 85, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: #F1F5F9;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #38BDF8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+        }
+        
+        .form-input::placeholder {
+            color: #94A3B8;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: rgba(51, 65, 85, 0.8);
+            color: #F1F5F9;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(71, 85, 105, 0.8);
+        }
+        
+        /* Estilos para notificações temporárias */
+        .temporary-alerts-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-width: 24rem;
+            pointer-events: none;
+        }
+        
+        .temporary-alert {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+        
+        .temporary-alert.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
+        .temporary-alert-info {
+            background: rgba(56, 189, 248, 0.9);
+            border-left: 4px solid #38BDF8;
+            color: white;
+        }
+        
+        .temporary-alert-success {
+            background: rgba(16, 185, 129, 0.9);
+            border-left: 4px solid #10B981;
+            color: white;
+        }
+        
+        .temporary-alert-warning {
+            background: rgba(245, 158, 11, 0.9);
+            border-left: 4px solid #F59E0B;
+            color: white;
+        }
+        
+        .temporary-alert-error {
+            background: rgba(239, 68, 68, 0.9);
+            border-left: 4px solid #EF4444;
+            color: white;
+        }
+        
+        .temporary-alert-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .temporary-alert-icon {
+            margin-right: 0.75rem;
+            font-size: 1.25rem;
+        }
+        
+        .temporary-alert-message {
+            font-weight: 500;
+        }
+        
+        .temporary-alert-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0.25rem;
+            margin-left: 0.75rem;
+            transition: color 0.2s ease;
+        }
+        
+        .temporary-alert-close:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-300 min-h-screen">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-logo">
+                <div class="w-8 h-8 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-lg flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <span class="header-logo-text">EliteControl</span>
+            </div>
+            
+            <div class="header-actions">
+                <!-- Notificações -->
+                <div class="relative">
+                    <button id="notificationBellButton" class="p-3 rounded-full hover:bg-slate-800 relative transition-colors">
+                        <i class="fas fa-bell text-slate-300"></i>
+                        <span id="notificationCountBadge" class="notification-badge hidden">0</span>
+                    </button>
+                    
+                    <div id="notificationDropdown" class="notification-dropdown hidden">
+                        <div class="notification-header">
+                            <span class="notification-title">Notificações</span>
+                            <button id="markAllAsReadButton" class="notification-action">
+                                Marcar todas como lidas
+                            </button>
+                        </div>
+                        <div id="notificationList" class="notification-list scrollbar-thin">
+                            <!-- Notificações serão inseridas dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Menu do usuário -->
+                <div class="user-menu">
+                    <button id="userMenuButton" class="user-button">
+                        <div id="userAvatar" class="user-avatar">
+                            <span id="userInitials">U</span>
+                        </div>
+                        <div class="user-info hidden md:block">
+                            <div id="usernameDisplay" class="user-name">Usuário</div>
+                            <div id="userRoleDisplay" class="user-role">Cargo</div>
+                        </div>
+                        <i class="fas fa-chevron-down text-slate-400 ml-2 hidden md:block"></i>
+                    </button>
+                    
+                    <div id="userDropdown" class="user-dropdown hidden">
+                        <div class="user-dropdown-header">
+                            <div class="user-dropdown-avatar">
+                                <span id="userDropdownInitials">U</span>
+                            </div>
+                            <div id="userDropdownName" class="user-dropdown-name">Usuário</div>
+                            <div id="userDropdownEmail" class="user-dropdown-email">usuario@exemplo.com</div>
+                        </div>
+                        
+                        <ul class="user-dropdown-menu">
+                            <li class="user-dropdown-item">
+                                <i class="fas fa-user user-dropdown-item-icon"></i>
+                                <span>Meu Perfil</span>
+                            </li>
+                            <li class="user-dropdown-item">
+                                <i class="fas fa-cog user-dropdown-item-icon"></i>
+                                <span>Configurações</span>
+                            </li>
+                            <div class="user-dropdown-divider"></div>
+                            <li id="logoutButton" class="user-dropdown-item user-dropdown-item-logout">
+                                <i class="fas fa-sign-out-alt user-dropdown-item-icon"></i>
+                                <span>Sair</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar scrollbar-thin">
+        <div class="sidebar-header">
+            <div id="sidebarProfileName" class="sidebar-title">Painel</div>
+        </div>
+        
+        <nav id="navLinks" class="nav-section">
+            <!-- Links de navegação serão inseridos dinamicamente -->
+        </nav>
+    </aside>
+    
+    <!-- Main Content -->
+    <main id="mainContent" class="main-content">
+        <div class="page-header">
+            <h1 id="pageTitle" class="page-title">Painel</h1>
+            <p id="pageSubtitle" class="page-subtitle">Sua visão personalizada do sistema.</p>
+        </div>
+        
+        <!-- Área de conteúdo dinâmico -->
+        <div id="dynamicContentArea">
+            <!-- Loading inicial -->
+            <div class="p-8 text-center text-slate-400">
+                <i class="fas fa-spinner fa-spin fa-2x mb-4"></i>
+                <p>Carregando dashboard...</p>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Container para alertas temporários -->
+    <div id="temporaryAlertsContainer" class="temporary-alerts-container"></div>
+    
+    <!-- Modal de Produto -->
+    <div id="productModal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="productModalTitle" class="modal-title">Adicionar Produto</h3>
+                <button id="closeProductModalButton" class="modal-close">
+                    &times;
+                </button>
+            </div>
+            
+            <form id="productForm" class="modal-body">
+                <input type="hidden" id="productId">
+                
+                <div class="form-group">
+                    <label for="productName" class="form-label">Nome do Produto *</label>
+                    <input type="text" 
+                           id="productName" 
+                           name="productName" 
+                           class="form-input" 
+                           placeholder="Ex: Notebook Dell Inspiron"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productCategory" class="form-label">Categoria *</label>
+                    <input type="text" 
+                           id="productCategory" 
+                           name="productCategory" 
+                           class="form-input" 
+                           placeholder="Ex: Eletrônicos"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productPrice" class="form-label">Preço (R$) *</label>
+                    <input type="number" 
+                           id="productPrice" 
+                           name="productPrice" 
+                           class="form-input" 
+                           placeholder="0.00"
+                           step="0.01" 
+                           min="0" 
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productStock" class="form-label">Estoque *</label>
+                    <input type="number" 
+                           id="productStock" 
+                           name="productStock" 
+                           class="form-input" 
+                           placeholder="0"
+                           step="1" 
+                           min="0" 
+                           required>
+                </div>
+            </form>
+            
+            <div class="modal-footer">
+                <button id="cancelProductFormButton" class="btn-secondary">
+                    Cancelar
+                </button>
+                <button id="saveProductButton" type="submit" form="productForm" class="btn-primary">
+                    <i class="fas fa-save mr-2"></i>
+                    Salvar Produto
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Container para modais dinâmicos -->
+    <div id="modalPlaceholder"></div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/firebase-service.js"></script> 
+    <script src="js/main.js"></script>
+
+    <script>
+        // Script inline para inicialização específica do dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📊 Dashboard HTML carregado');
+            
+            // Configurar modal para mostrar/esconder corretamente
+            const productModal = document.getElementById('productModal');
+            if (productModal) {
+                // Observer para detectar mudanças na classe hidden
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.attributeName === 'class') {
+                            const modal = mutation.target;
+                            const modalContent = modal.querySelector('.modal-content');
+                            
+                            if (modal.classList.contains('hidden')) {
+                                modal.classList.remove('show');
+                                if (modalContent) modalContent.classList.remove('show');
+                            } else {
+                                setTimeout(() => {
+                                    modal.classList.add('show');
+                                    if (modalContent) modalContent.classList.add('show');
+                                }, 10);
+                            }
+                        }
+                    });
+                });
+                
+                observer.observe(productModal, { attributes: true, attributeFilter: ['class'] });
+            }
+            
+            // Fechar modal ao clicar fora
+            document.addEventListener('click', function(e) {
+                const modal = document.getElementById('productModal');
+                if (modal && e.target === modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+            
+            // Fechar modal com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('productModal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        modal.classList.add('hidden');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
