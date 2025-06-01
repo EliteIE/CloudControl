@@ -784,19 +784,859 @@ function createProductsTable(products, userRole) {
 }
 
 function renderRegisterSaleForm(container, currentUser) {
+    console.log("💰 Renderizando formulário de registro de venda");
+    
     container.innerHTML = `
-        <div class="p-8">
-            <h2 class="text-xl font-semibold text-slate-100 mb-4">Registrar Nova Venda</h2>
-            <div class="bg-slate-800 p-6 rounded-lg">
-                <div class="text-center text-slate-400">
-                    <i class="fas fa-tools fa-3x mb-4"></i>
-                    <p>Formulário de registro de venda em desenvolvimento.</p>
-                    <p class="text-sm mt-2">Esta funcionalidade será implementada em breve.</p>
+        <div class="register-sale-container">
+            <div class="sale-header">
+                <h2 class="text-xl font-semibold text-slate-100 mb-2">Registrar Nova Venda</h2>
+                <p class="text-slate-400 mb-6">Selecione os produtos e quantidades para registrar a venda</p>
+            </div>
+            
+            <!-- Informações da Venda -->
+            <div class="sale-info-card mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="info-item">
+                        <label class="info-label">Vendedor</label>
+                        <div class="info-value">${currentUser.name || currentUser.email}</div>
+                    </div>
+                    <div class="info-item">
+                        <label class="info-label">Data</label>
+                        <div class="info-value">${new Date().toLocaleDateString('pt-BR')}</div>
+                    </div>
+                    <div class="info-item">
+                        <label class="info-label">Hora</label>
+                        <div class="info-value" id="currentTime">${new Date().toLocaleTimeString('pt-BR')}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Seleção de Produtos -->
+            <div class="products-selection-card mb-6">
+                <h3 class="text-lg font-semibold text-slate-100 mb-4">
+                    <i class="fas fa-shopping-cart mr-2"></i>
+                    Selecionar Produtos
+                </h3>
+                
+                <div class="search-container mb-4">
+                    <div class="relative">
+                        <input type="text" 
+                               id="productSearchInput" 
+                               class="form-input pl-10" 
+                               placeholder="Buscar produtos...">
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                    </div>
+                </div>
+                
+                <div id="availableProductsList" class="products-grid">
+                    <div class="loading-products">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        Carregando produtos...
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Carrinho de Compras -->
+            <div class="cart-card mb-6">
+                <div class="cart-header">
+                    <h3 class="text-lg font-semibold text-slate-100">
+                        <i class="fas fa-receipt mr-2"></i>
+                        Itens da Venda
+                    </h3>
+                    <button id="clearCartButton" class="btn-secondary btn-sm" style="display: none;">
+                        <i class="fas fa-trash mr-1"></i>
+                        Limpar
+                    </button>
+                </div>
+                
+                <div id="cartItemsList" class="cart-items">
+                    <div class="empty-cart">
+                        <i class="fas fa-shopping-cart fa-2x mb-2 text-slate-400"></i>
+                        <p class="text-slate-400">Nenhum produto adicionado</p>
+                        <p class="text-sm text-slate-500">Selecione produtos acima para adicionar à venda</p>
+                    </div>
+                </div>
+                
+                <div id="cartSummary" class="cart-summary" style="display: none;">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span id="cartSubtotal">R$ 0,00</span>
+                    </div>
+                    <div class="summary-row total-row">
+                        <span>Total:</span>
+                        <span id="cartTotal">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ações -->
+            <div class="sale-actions">
+                <button id="cancelSaleButton" class="btn-secondary">
+                    <i class="fas fa-times mr-2"></i>
+                    Cancelar
+                </button>
+                <button id="finalizeSaleButton" class="btn-primary" disabled>
+                    <i class="fas fa-check mr-2"></i>
+                    Finalizar Venda
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Aplicar estilos específicos
+    addSaleFormStyles();
+    
+    // Inicializar funcionalidades
+    initializeSaleForm(currentUser);
+}
+
+function addSaleFormStyles() {
+    // Adicionar estilos específicos se não existirem
+    if (!document.getElementById('saleFormStyles')) {
+        const style = document.createElement('style');
+        style.id = 'saleFormStyles';
+        style.textContent = `
+            .register-sale-container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            
+            .sale-info-card, .products-selection-card, .cart-card {
+                background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                border: 1px solid rgba(51, 65, 85, 0.5);
+                backdrop-filter: blur(10px);
+            }
+            
+            .info-item {
+                text-align: center;
+            }
+            
+            .info-label {
+                display: block;
+                font-size: 0.75rem;
+                color: #94A3B8;
+                font-weight: 500;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 0.25rem;
+            }
+            
+            .info-value {
+                font-size: 0.875rem;
+                color: #F1F5F9;
+                font-weight: 600;
+            }
+            
+            .products-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 1rem;
+                max-height: 400px;
+                overflow-y: auto;
+                padding: 0.5rem;
+            }
+            
+            .product-card {
+                background: rgba(51, 65, 85, 0.3);
+                border: 1px solid rgba(71, 85, 105, 0.5);
+                border-radius: 0.5rem;
+                padding: 1rem;
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+            
+            .product-card:hover {
+                background: rgba(51, 65, 85, 0.5);
+                border-color: rgba(56, 189, 248, 0.5);
+            }
+            
+            .product-card.selected {
+                background: rgba(56, 189, 248, 0.1);
+                border-color: rgba(56, 189, 248, 0.8);
+            }
+            
+            .product-name {
+                font-weight: 600;
+                color: #F1F5F9;
+                margin-bottom: 0.25rem;
+            }
+            
+            .product-category {
+                font-size: 0.75rem;
+                color: #94A3B8;
+                margin-bottom: 0.5rem;
+            }
+            
+            .product-details {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .product-price {
+                font-weight: 600;
+                color: #38BDF8;
+            }
+            
+            .product-stock {
+                font-size: 0.75rem;
+                color: #94A3B8;
+            }
+            
+            .product-stock.low {
+                color: #F59E0B;
+            }
+            
+            .product-stock.out {
+                color: #EF4444;
+            }
+            
+            .quantity-controls {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-top: 0.75rem;
+            }
+            
+            .quantity-btn {
+                background: rgba(56, 189, 248, 0.2);
+                border: 1px solid rgba(56, 189, 248, 0.5);
+                color: #38BDF8;
+                width: 2rem;
+                height: 2rem;
+                border-radius: 0.25rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .quantity-btn:hover {
+                background: rgba(56, 189, 248, 0.3);
+            }
+            
+            .quantity-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            
+            .quantity-input {
+                background: rgba(15, 23, 42, 0.8);
+                border: 1px solid rgba(51, 65, 85, 0.5);
+                color: #F1F5F9;
+                text-align: center;
+                width: 3rem;
+                padding: 0.25rem;
+                border-radius: 0.25rem;
+            }
+            
+            .cart-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+            }
+            
+            .cart-items {
+                min-height: 120px;
+            }
+            
+            .empty-cart {
+                text-align: center;
+                padding: 2rem;
+            }
+            
+            .cart-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.75rem;
+                border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+                background: rgba(51, 65, 85, 0.2);
+                border-radius: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            .cart-item-info {
+                flex: 1;
+            }
+            
+            .cart-item-name {
+                font-weight: 500;
+                color: #F1F5F9;
+                margin-bottom: 0.25rem;
+            }
+            
+            .cart-item-details {
+                font-size: 0.75rem;
+                color: #94A3B8;
+            }
+            
+            .cart-item-quantity {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin: 0 1rem;
+            }
+            
+            .cart-item-total {
+                font-weight: 600;
+                color: #38BDF8;
+                min-width: 80px;
+                text-align: right;
+            }
+            
+            .remove-item-btn {
+                background: rgba(239, 68, 68, 0.2);
+                border: 1px solid rgba(239, 68, 68, 0.5);
+                color: #EF4444;
+                width: 2rem;
+                height: 2rem;
+                border-radius: 0.25rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .remove-item-btn:hover {
+                background: rgba(239, 68, 68, 0.3);
+            }
+            
+            .cart-summary {
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+                padding-top: 1rem;
+                margin-top: 1rem;
+            }
+            
+            .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+                color: #F1F5F9;
+            }
+            
+            .total-row {
+                font-size: 1.125rem;
+                font-weight: 700;
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+                padding-top: 0.5rem;
+                margin-top: 0.5rem;
+                color: #38BDF8;
+            }
+            
+            .sale-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 1rem;
+            }
+            
+            .btn-sm {
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
+            }
+            
+            .loading-products {
+                text-align: center;
+                padding: 2rem;
+                color: #94A3B8;
+            }
+            
+            @media (max-width: 768px) {
+                .products-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .cart-item {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 0.5rem;
+                }
+                
+                .cart-item-quantity {
+                    margin: 0;
+                }
+                
+                .sale-actions {
+                    flex-direction: column;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+let saleCart = [];
+let availableProducts = [];
+
+async function initializeSaleForm(currentUser) {
+    console.log("🛒 Inicializando formulário de venda");
+    
+    try {
+        // Carregar produtos disponíveis
+        availableProducts = await DataService.getProducts();
+        renderAvailableProducts(availableProducts);
+        
+        // Configurar event listeners
+        setupSaleFormEventListeners(currentUser);
+        
+        // Atualizar hora a cada minuto
+        setInterval(updateCurrentTime, 60000);
+        
+        console.log("✅ Formulário de venda inicializado");
+        
+    } catch (error) {
+        console.error("❌ Erro ao inicializar formulário de venda:", error);
+        showTemporaryAlert("Erro ao carregar produtos. Tente novamente.", "error");
+    }
+}
+
+function renderAvailableProducts(products) {
+    const container = document.getElementById('availableProductsList');
+    if (!container) return;
+    
+    if (!products || products.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+                <i class="fas fa-box-open fa-3x mb-4"></i>
+                <p>Nenhum produto disponível</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = products.map(product => {
+        const isInCart = saleCart.find(item => item.productId === product.id);
+        const stockClass = product.stock === 0 ? 'out' : (product.stock < 20 ? 'low' : '');
+        const isOutOfStock = product.stock === 0;
+        
+        return `
+            <div class="product-card ${isInCart ? 'selected' : ''} ${isOutOfStock ? 'disabled' : ''}" 
+                 data-product-id="${product.id}"
+                 ${isOutOfStock ? '' : 'onclick="toggleProductSelection(\'' + product.id + '\')"'}>
+                <div class="product-name">${product.name}</div>
+                <div class="product-category">${product.category}</div>
+                <div class="product-details">
+                    <div class="product-price">${formatCurrency(product.price)}</div>
+                    <div class="product-stock ${stockClass}">
+                        ${isOutOfStock ? 'Sem estoque' : `${product.stock} unidades`}
+                    </div>
+                </div>
+                
+                ${isInCart ? `
+                    <div class="quantity-controls">
+                        <button class="quantity-btn" onclick="event.stopPropagation(); changeQuantity('${product.id}', -1)">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" 
+                               class="quantity-input" 
+                               value="${isInCart.quantity}" 
+                               min="1" 
+                               max="${product.stock}"
+                               onchange="updateQuantity('${product.id}', this.value)"
+                               onclick="event.stopPropagation()">
+                        <button class="quantity-btn" 
+                                onclick="event.stopPropagation(); changeQuantity('${product.id}', 1)"
+                                ${isInCart.quantity >= product.stock ? 'disabled' : ''}>
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleProductSelection(productId) {
+    const product = availableProducts.find(p => p.id === productId);
+    if (!product || product.stock === 0) return;
+    
+    const existingItem = saleCart.find(item => item.productId === productId);
+    
+    if (existingItem) {
+        // Remover do carrinho
+        saleCart = saleCart.filter(item => item.productId !== productId);
+    } else {
+        // Adicionar ao carrinho
+        saleCart.push({
+            productId: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: 1,
+            maxStock: product.stock
+        });
+    }
+    
+    updateSaleInterface();
+}
+
+function changeQuantity(productId, change) {
+    const cartItem = saleCart.find(item => item.productId === productId);
+    if (!cartItem) return;
+    
+    const newQuantity = cartItem.quantity + change;
+    
+    if (newQuantity <= 0) {
+        // Remover item se quantidade for 0 ou menor
+        saleCart = saleCart.filter(item => item.productId !== productId);
+    } else if (newQuantity <= cartItem.maxStock) {
+        cartItem.quantity = newQuantity;
+    }
+    
+    updateSaleInterface();
+}
+
+function updateQuantity(productId, newQuantity) {
+    const cartItem = saleCart.find(item => item.productId === productId);
+    if (!cartItem) return;
+    
+    const quantity = parseInt(newQuantity);
+    
+    if (isNaN(quantity) || quantity <= 0) {
+        saleCart = saleCart.filter(item => item.productId !== productId);
+    } else if (quantity <= cartItem.maxStock) {
+        cartItem.quantity = quantity;
+    } else {
+        // Resetar para o máximo permitido
+        cartItem.quantity = cartItem.maxStock;
+    }
+    
+    updateSaleInterface();
+}
+
+function updateSaleInterface() {
+    renderAvailableProducts(availableProducts);
+    renderCartItems();
+    updateCartSummary();
+    updateFinalizeSaleButton();
+}
+
+function renderCartItems() {
+    const container = document.getElementById('cartItemsList');
+    const clearButton = document.getElementById('clearCartButton');
+    
+    if (!container) return;
+    
+    if (saleCart.length === 0) {
+        container.innerHTML = `
+            <div class="empty-cart">
+                <i class="fas fa-shopping-cart fa-2x mb-2 text-slate-400"></i>
+                <p class="text-slate-400">Nenhum produto adicionado</p>
+                <p class="text-sm text-slate-500">Selecione produtos acima para adicionar à venda</p>
+            </div>
+        `;
+        if (clearButton) clearButton.style.display = 'none';
+        return;
+    }
+    
+    if (clearButton) clearButton.style.display = 'block';
+    
+    container.innerHTML = saleCart.map(item => `
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <div class="cart-item-name">${item.name}</div>
+                <div class="cart-item-details">
+                    ${formatCurrency(item.price)} × ${item.quantity}
+                </div>
+            </div>
+            
+            <div class="cart-item-quantity">
+                <button class="quantity-btn" onclick="changeQuantity('${item.productId}', -1)">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <span class="mx-2">${item.quantity}</span>
+                <button class="quantity-btn" 
+                        onclick="changeQuantity('${item.productId}', 1)"
+                        ${item.quantity >= item.maxStock ? 'disabled' : ''}>
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            
+            <div class="cart-item-total">
+                ${formatCurrency(item.price * item.quantity)}
+            </div>
+            
+            <button class="remove-item-btn" onclick="removeCartItem('${item.productId}')">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function removeCartItem(productId) {
+    saleCart = saleCart.filter(item => item.productId !== productId);
+    updateSaleInterface();
+}
+
+function clearCart() {
+    saleCart = [];
+    updateSaleInterface();
+    showTemporaryAlert("Carrinho limpo", "info", 2000);
+}
+
+function updateCartSummary() {
+    const summaryContainer = document.getElementById('cartSummary');
+    const subtotalElement = document.getElementById('cartSubtotal');
+    const totalElement = document.getElementById('cartTotal');
+    
+    if (!summaryContainer || !subtotalElement || !totalElement) return;
+    
+    if (saleCart.length === 0) {
+        summaryContainer.style.display = 'none';
+        return;
+    }
+    
+    const subtotal = saleCart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    const total = subtotal; // Aqui poderia ter desconto, taxa, etc.
+    
+    subtotalElement.textContent = formatCurrency(subtotal);
+    totalElement.textContent = formatCurrency(total);
+    summaryContainer.style.display = 'block';
+}
+
+function updateFinalizeSaleButton() {
+    const button = document.getElementById('finalizeSaleButton');
+    if (!button) return;
+    
+    button.disabled = saleCart.length === 0;
+}
+
+function setupSaleFormEventListeners(currentUser) {
+    // Busca de produtos
+    const searchInput = document.getElementById('productSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredProducts = availableProducts.filter(product => 
+                product.name.toLowerCase().includes(searchTerm) ||
+                product.category.toLowerCase().includes(searchTerm)
+            );
+            renderAvailableProducts(filteredProducts);
+        });
+    }
+    
+    // Limpar carrinho
+    const clearCartButton = document.getElementById('clearCartButton');
+    if (clearCartButton) {
+        clearCartButton.addEventListener('click', clearCart);
+    }
+    
+    // Cancelar venda
+    const cancelButton = document.getElementById('cancelSaleButton');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+            if (saleCart.length > 0) {
+                showCustomConfirm(
+                    'Tem certeza que deseja cancelar esta venda? Todos os itens serão removidos.',
+                    () => {
+                        clearCart();
+                        showTemporaryAlert('Venda cancelada', 'info');
+                    }
+                );
+            } else {
+                showTemporaryAlert('Nenhuma venda para cancelar', 'info');
+            }
+        });
+    }
+    
+    // Finalizar venda
+    const finalizeButton = document.getElementById('finalizeSaleButton');
+    if (finalizeButton) {
+        finalizeButton.addEventListener('click', () => finalizeSale(currentUser));
+    }
+}
+
+async function finalizeSale(currentUser) {
+    if (saleCart.length === 0) {
+        showTemporaryAlert('Adicione produtos à venda primeiro', 'warning');
+        return;
+    }
+    
+    const finalizeButton = document.getElementById('finalizeSaleButton');
+    const originalText = finalizeButton.textContent;
+    
+    // Desabilitar botão e mostrar loading
+    finalizeButton.disabled = true;
+    finalizeButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processando...';
+    
+    try {
+        // Validar estoque antes de finalizar
+        for (const item of saleCart) {
+            const currentProduct = await DataService.getProductById(item.productId);
+            if (!currentProduct) {
+                throw new Error(`Produto ${item.name} não encontrado`);
+            }
+            if (currentProduct.stock < item.quantity) {
+                throw new Error(`Estoque insuficiente para ${item.name}. Disponível: ${currentProduct.stock}`);
+            }
+        }
+        
+        // Preparar dados da venda
+        const saleData = {
+            date: new Date().toISOString(),
+            dateString: new Date().toISOString().split('T')[0]
+        };
+        
+        const productsDetail = saleCart.map(item => ({
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price
+        }));
+        
+        const sellerName = currentUser.name || currentUser.email;
+        
+        // Registrar venda
+        const newSale = await DataService.addSale(saleData, productsDetail, sellerName);
+        
+        // Limpar carrinho
+        saleCart = [];
+        updateSaleInterface();
+        
+        // Recarregar produtos para atualizar estoque
+        availableProducts = await DataService.getProducts();
+        renderAvailableProducts(availableProducts);
+        
+        // Mostrar sucesso
+        showSaleSuccessModal(newSale);
+        
+        console.log("✅ Venda finalizada com sucesso:", newSale);
+        
+    } catch (error) {
+        console.error("❌ Erro ao finalizar venda:", error);
+        showTemporaryAlert(`Erro ao finalizar venda: ${error.message}`, 'error');
+    } finally {
+        // Restaurar botão
+        finalizeButton.disabled = false;
+        finalizeButton.innerHTML = originalText;
+    }
+}
+
+function showSaleSuccessModal(sale) {
+    const total = sale.productsDetail.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    
+    const modalHtml = `
+        <div class="modal-backdrop show" id="saleSuccessModal">
+            <div class="modal-content show" style="max-width: 500px;">
+                <div class="modal-header">
+                    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+                    <h3 class="modal-title">Venda Realizada com Sucesso!</h3>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="success-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Total da Venda:</span>
+                            <span class="detail-value text-green-500 font-bold text-xl">${formatCurrency(total)}</span>
+                        </div>
+                        
+                        <div class="detail-row">
+                            <span class="detail-label">Data:</span>
+                            <span class="detail-value">${formatDate(new Date())}</span>
+                        </div>
+                        
+                        <div class="detail-row">
+                            <span class="detail-label">Produtos:</span>
+                            <span class="detail-value">${sale.productsDetail.length} item(s)</span>
+                        </div>
+                        
+                        <div class="products-sold">
+                            <h4 class="text-sm font-semibold text-slate-300 mb-2">Itens Vendidos:</h4>
+                            <div class="sold-items">
+                                ${sale.productsDetail.map(item => `
+                                    <div class="sold-item">
+                                        <span>${item.name}</span>
+                                        <span>${item.quantity}x ${formatCurrency(item.unitPrice)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn-primary" onclick="closeSaleSuccessModal()">
+                        <i class="fas fa-thumbs-up mr-2"></i>
+                        Perfeito!
+                    </button>
                 </div>
             </div>
         </div>
     `;
+    
+    // Adicionar estilos específicos do modal de sucesso
+    if (!document.getElementById('saleSuccessStyles')) {
+        const style = document.createElement('style');
+        style.id = 'saleSuccessStyles';
+        style.textContent = `
+            .success-details {
+                background: rgba(16, 185, 129, 0.1);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                border-radius: 0.5rem;
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+            
+            .detail-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+            }
+            
+            .detail-label {
+                color: #94A3B8;
+                font-size: 0.875rem;
+            }
+            
+            .detail-value {
+                color: #F1F5F9;
+                font-weight: 500;
+            }
+            
+            .products-sold {
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+            }
+            
+            .sold-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 0.25rem 0;
+                font-size: 0.875rem;
+                color: #94A3B8;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
+
+function closeSaleSuccessModal() {
+    const modal = document.getElementById('saleSuccessModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function updateCurrentTime() {
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        timeElement.textContent = new Date().toLocaleTimeString('pt-BR');
+    }
+}
+
+// Expor funções globalmente para uso em onclick
+window.toggleProductSelection = toggleProductSelection;
+window.changeQuantity = changeQuantity;
+window.updateQuantity = updateQuantity;
+window.removeCartItem = removeCartItem;
+window.closeSaleSuccessModal = closeSaleSuccessModal;
 
 function renderSalesList(sales, container, userRole) {
     console.log("💰 Renderizando lista de vendas:", sales.length);
