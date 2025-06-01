@@ -588,6 +588,133 @@ const DataService = {
     },
 
     /**
+     * Obtém estatísticas de vendas por vendedor específico
+     * @param {string} sellerId - ID do vendedor
+     * @returns {Object} Estatísticas das vendas do vendedor
+     */
+    getSalesStatsBySeller: async function(sellerId) {
+        if (!db) throw new Error("Firestore não inicializado em getSalesStatsBySeller");
+        if (!sellerId) throw new Error("ID do vendedor é obrigatório");
+        
+        try {
+            console.log("📊 Calculando estatísticas de vendas para vendedor:", sellerId);
+            
+            const stats = {
+                totalSales: 0,
+                todaySales: 0,
+                weekSales: 0,
+                monthSales: 0,
+                totalRevenue: 0,
+                todayRevenue: 0,
+                weekRevenue: 0,
+                monthRevenue: 0,
+                averageTicket: 0
+            };
+            
+            const salesSnapshot = await db.collection('sales')
+                .where('sellerId', '==', sellerId)
+                .get();
+            
+            stats.totalSales = salesSnapshot.size;
+            
+            // Calcular datas de referência
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startOfWeek = new Date(startOfToday);
+            startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            let totalRevenueSum = 0;
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                const saleTotal = Number(sale.total) || 0;
+                const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+                
+                totalRevenueSum += saleTotal;
+                
+                if (saleDate >= startOfToday) {
+                    stats.todaySales++;
+                    stats.todayRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfWeek) {
+                    stats.weekSales++;
+                    stats.weekRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfMonth) {
+                    stats.monthSales++;
+                    stats.monthRevenue += saleTotal;
+                }
+            });
+            
+            stats.totalRevenue = totalRevenueSum;
+            stats.averageTicket = stats.totalSales > 0 ? stats.totalRevenue / stats.totalSales : 0;
+            
+            console.log("✅ Estatísticas do vendedor calculadas:", stats);
+            return stats;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar estatísticas por vendedor:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém produtos mais vendidos por vendedor específico
+     * @param {string} sellerId - ID do vendedor
+     * @param {number} limit - Limite de produtos a retornar
+     * @returns {Array} Lista dos produtos mais vendidos pelo vendedor
+     */
+    getTopProductsBySeller: async function(sellerId, limit = 5) {
+        if (!db) throw new Error("Firestore não inicializado em getTopProductsBySeller");
+        if (!sellerId) throw new Error("ID do vendedor é obrigatório");
+        
+        try {
+            console.log("🔍 Buscando top produtos do vendedor:", sellerId, "limite:", limit);
+            
+            const salesSnapshot = await db.collection('sales')
+                .where('sellerId', '==', sellerId)
+                .get();
+            
+            const productCounts = {};
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                if (sale.productsDetail && Array.isArray(sale.productsDetail)) {
+                    sale.productsDetail.forEach(item => {
+                        if (item.productId && item.name) {
+                            const key = item.productId;
+                            if (!productCounts[key]) {
+                                productCounts[key] = {
+                                    productId: item.productId,
+                                    name: item.name,
+                                    count: 0,
+                                    revenue: 0
+                                };
+                            }
+                            productCounts[key].count += Number(item.quantity) || 0;
+                            productCounts[key].revenue += (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                        }
+                    });
+                }
+            });
+            
+            const sortedProducts = Object.values(productCounts)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, limit);
+            
+            console.log("✅ Top produtos do vendedor encontrados:", sortedProducts);
+            return sortedProducts;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar top produtos por vendedor:", error);
+            throw error;
+        }
+    },
+
+    /**
      * Obtém vendedores com melhor performance
      * @param {number} limit - Limite de vendedores a retornar
      * @returns {Array} Lista dos melhores vendedores
