@@ -1,736 +1,841 @@
-// js/firebase-crm-service.js
-// Serviço avançado de CRM para EliteControl
+// js/firebase-service.js
+// Serviço otimizado para interagir com o Firebase Firestore
 
-const CRMService = {
-    // === FUNÇÕES DE CLIENTES ===
+const DataService = {
+    // === FUNÇÕES DE USUÁRIO ===
     
     /**
-     * Criar ou atualizar cliente
-     * @param {Object} customerData - Dados do cliente
-     * @returns {Object} Cliente criado/atualizado
+     * Busca dados do usuário por UID
+     * @param {string} userId - UID do usuário
+     * @returns {Object|null} Dados do usuário ou null se não encontrado
      */
-    createOrUpdateCustomer: async function(customerData) {
-        if (!db) throw new Error("Firestore não inicializado");
-        if (!customerData) throw new Error("Dados do cliente são obrigatórios");
+    getUserData: async function(userId) {
+        if (!db) {
+            console.error("❌ Firestore (db) não está inicializado em getUserData!");
+            throw new Error("Conexão com banco de dados não disponível.");
+        }
         
         try {
-            console.log("👤 Criando/atualizando cliente:", customerData);
+            console.log("🔍 Buscando dados do usuário:", userId);
             
-            // Validar dados obrigatórios
-            if (!customerData.name || !customerData.phone) {
-                throw new Error("Nome e telefone são obrigatórios");
+            const userDocRef = db.collection('users').doc(userId);
+            const userDoc = await userDocRef.get();
+            
+            if (userDoc.exists) {
+                const userData = { uid: userId, ...userDoc.data() };
+                console.log("✅ Dados do usuário encontrados:", userData);
+                return userData;
+            } else {
+                console.warn(`⚠️ Documento do usuário não encontrado pelo UID: ${userId}`);
+                
+                // Tentar buscar por email se o usuário está logado
+                if (firebase.auth().currentUser && firebase.auth().currentUser.email) {
+                    const email = firebase.auth().currentUser.email;
+                    console.log("🔍 Tentando buscar usuário por email:", email);
+                    
+                    const emailQuery = await db.collection('users')
+                        .where('email', '==', email)
+                        .limit(1)
+                        .get();
+                    
+                    if (!emailQuery.empty) {
+                        const doc = emailQuery.docs[0];
+                        const userData = { uid: userId, email: email, ...doc.data() };
+                        console.log("✅ Usuário encontrado por email:", userData);
+                        return userData;
+                    }
+                }
+                
+                return null;
             }
-            
+        } catch (error) {
+            console.error("❌ Erro ao buscar dados do usuário:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Cria ou atualiza dados do usuário
+     * @param {string} userId - UID do usuário
+     * @param {Object} userData - Dados do usuário
+     * @returns {Object} Dados do usuário criado/atualizado
+     */
+    createOrUpdateUser: async function(userId, userData) {
+        if (!db) throw new Error("Firestore não inicializado em createOrUpdateUser");
+        
+        try {
+            const userRef = db.collection('users').doc(userId);
             const timestamp = firebase.firestore.FieldValue.serverTimestamp();
             
-            // Verificar se cliente já existe por telefone
-            let customerId = customerData.id;
-            if (!customerId && customerData.phone) {
-                const existingCustomer = await this.getCustomerByPhone(customerData.phone);
-                if (existingCustomer) {
-                    customerId = existingCustomer.id;
-                }
-            }
-            
             const dataToSave = {
-                name: customerData.name.trim(),
-                phone: customerData.phone.trim(),
-                email: customerData.email?.trim() || '',
-                cpf: customerData.cpf?.trim() || '',
-                address: customerData.address?.trim() || '',
-                birthdate: customerData.birthdate || '',
-                notes: customerData.notes?.trim() || '',
-                tags: customerData.tags || [],
+                ...userData,
                 updatedAt: timestamp
             };
             
-            if (customerId) {
-                // Atualizar cliente existente
-                await db.collection('customers').doc(customerId).update(dataToSave);
-                console.log("✅ Cliente atualizado:", customerId);
-            } else {
-                // Criar novo cliente
+            // Se é criação, adicionar createdAt
+            const userDoc = await userRef.get();
+            if (!userDoc.exists) {
                 dataToSave.createdAt = timestamp;
-                dataToSave.firstPurchaseDate = null;
-                dataToSave.lastPurchaseDate = null;
-                dataToSave.totalPurchases = 0;
-                dataToSave.totalSpent = 0;
-                dataToSave.averageTicket = 0;
-                dataToSave.favoriteCategories = [];
-                dataToSave.favoriteProducts = [];
-                dataToSave.status = 'active';
-                dataToSave.loyaltyPoints = 0;
-                
-                const docRef = await db.collection('customers').add(dataToSave);
-                customerId = docRef.id;
-                console.log("✅ Cliente criado:", customerId);
             }
             
-            return { id: customerId, ...dataToSave };
+            await userRef.set(dataToSave, { merge: true });
+            console.log("✅ Usuário criado/atualizado:", userId);
             
+            return { uid: userId, ...dataToSave };
         } catch (error) {
-            console.error("❌ Erro ao criar/atualizar cliente:", error);
+            console.error("❌ Erro ao criar/atualizar usuário:", error);
             throw error;
         }
     },
 
+    // === FUNÇÕES DE PRODUTOS ===
+    
     /**
-     * Buscar cliente por telefone
-     * @param {string} phone - Telefone do cliente
-     * @returns {Object|null} Cliente encontrado ou null
+     * Busca todos os produtos
+     * @returns {Array} Lista de produtos
      */
-    getCustomerByPhone: async function(phone) {
-        if (!db) throw new Error("Firestore não inicializado");
-        if (!phone) return null;
+    getProducts: async function() {
+        if (!db) throw new Error("Firestore não inicializado em getProducts");
         
         try {
-            const cleanPhone = phone.replace(/\D/g, '');
+            console.log("🔍 Buscando produtos...");
             
-            const snapshot = await db.collection('customers')
-                .where('phone', '==', cleanPhone)
-                .limit(1)
+            const snapshot = await db.collection('products')
+                .orderBy('name')
                 .get();
             
-            if (!snapshot.empty) {
-                const doc = snapshot.docs[0];
-                return { id: doc.id, ...doc.data() };
-            }
-            
-            return null;
-        } catch (error) {
-            console.error("❌ Erro ao buscar cliente por telefone:", error);
-            return null;
-        }
-    },
-
-    /**
-     * Buscar todos os clientes
-     * @param {Object} filters - Filtros opcionais
-     * @returns {Array} Lista de clientes
-     */
-    getCustomers: async function(filters = {}) {
-        if (!db) throw new Error("Firestore não inicializado");
-        
-        try {
-            console.log("🔍 Buscando clientes com filtros:", filters);
-            
-            let query = db.collection('customers');
-            
-            // Aplicar filtros
-            if (filters.status) {
-                query = query.where('status', '==', filters.status);
-            }
-            
-            if (filters.inactiveDays) {
-                const inactiveDate = new Date();
-                inactiveDate.setDate(inactiveDate.getDate() - filters.inactiveDays);
-                query = query.where('lastPurchaseDate', '<=', inactiveDate);
-            }
-            
-            // Ordenação
-            query = query.orderBy(filters.orderBy || 'name', filters.orderDirection || 'asc');
-            
-            const snapshot = await query.get();
-            const customers = [];
-            
+            const products = [];
             snapshot.forEach(doc => {
-                customers.push({
+                const data = doc.data();
+                products.push({
                     id: doc.id,
-                    ...doc.data()
+                    ...data,
+                    price: Number(data.price) || 0,
+                    stock: Number(data.stock) || 0,
+                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
                 });
             });
             
-            console.log("✅ Clientes encontrados:", customers.length);
-            return customers;
-            
+            console.log("✅ Produtos encontrados:", products.length);
+            return products;
         } catch (error) {
-            console.error("❌ Erro ao buscar clientes:", error);
+            console.error("❌ Erro ao buscar produtos:", error);
             throw error;
         }
     },
 
     /**
-     * Buscar cliente por ID
-     * @param {string} customerId - ID do cliente
-     * @returns {Object|null} Cliente encontrado ou null
+     * Busca produto por ID
+     * @param {string} productId - ID do produto
+     * @returns {Object|null} Dados do produto ou null se não encontrado
      */
-    getCustomerById: async function(customerId) {
-        if (!db) throw new Error("Firestore não inicializado");
-        if (!customerId) throw new Error("ID do cliente é obrigatório");
+    getProductById: async function(productId) {
+        if (!db) throw new Error("Firestore não inicializado em getProductById");
+        if (!productId) throw new Error("ID do produto é obrigatório");
         
         try {
-            const doc = await db.collection('customers').doc(customerId).get();
+            console.log("🔍 Buscando produto por ID:", productId);
             
-            if (doc.exists) {
-                return { id: doc.id, ...doc.data() };
+            const docRef = db.collection('products').doc(productId);
+            const docSnap = await docRef.get();
+            
+            if (docSnap.exists) {
+                const data = docSnap.data();
+                const product = {
+                    id: docSnap.id,
+                    ...data,
+                    price: Number(data.price) || 0,
+                    stock: Number(data.stock) || 0,
+                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
+                };
+                console.log("✅ Produto encontrado:", product);
+                return product;
+            } else {
+                console.warn("⚠️ Produto não encontrado:", productId);
+                return null;
             }
-            
-            return null;
         } catch (error) {
-            console.error("❌ Erro ao buscar cliente por ID:", error);
+            console.error("❌ Erro ao buscar produto por ID:", error);
             throw error;
         }
     },
 
     /**
-     * Atualizar estatísticas do cliente após venda
-     * @param {string} customerId - ID do cliente
-     * @param {Object} saleData - Dados da venda
+     * Adiciona novo produto
+     * @param {Object} productData - Dados do produto
+     * @returns {Object} Produto criado com ID
      */
-    updateCustomerStats: async function(customerId, saleData) {
-        if (!db || !customerId || !saleData) return;
+    addProduct: async function(productData) {
+        if (!db) throw new Error("Firestore não inicializado em addProduct");
+        if (!productData) throw new Error("Dados do produto são obrigatórios");
         
         try {
-            const customerRef = db.collection('customers').doc(customerId);
-            const customerDoc = await customerRef.get();
+            console.log("➕ Adicionando produto:", productData);
             
-            if (!customerDoc.exists) {
-                console.warn("⚠️ Cliente não encontrado para atualizar estatísticas");
-                return;
+            // Validar dados obrigatórios
+            if (!productData.name || !productData.category) {
+                throw new Error("Nome e categoria são obrigatórios");
             }
             
-            const currentData = customerDoc.data();
-            const totalPurchases = (currentData.totalPurchases || 0) + 1;
-            const totalSpent = (currentData.totalSpent || 0) + saleData.total;
+            const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+            const dataToSave = {
+                name: String(productData.name).trim(),
+                category: String(productData.category).trim(),
+                price: Number(productData.price) || 0,
+                stock: Number(productData.stock) || 0,
+                lowStockAlert: Number(productData.lowStockAlert) || 10, // Incluir campo de alerta
+                createdAt: timestamp,
+                updatedAt: timestamp
+            };
             
-            // Calcular categorias e produtos favoritos
-            const productCategories = {};
-            const productCounts = {};
+            const docRef = await db.collection('products').add(dataToSave);
+            console.log("✅ Produto adicionado com ID:", docRef.id);
             
-            saleData.productsDetail.forEach(item => {
-                // Contar produtos
-                if (!productCounts[item.productId]) {
-                    productCounts[item.productId] = {
-                        id: item.productId,
-                        name: item.name,
-                        count: 0
-                    };
-                }
-                productCounts[item.productId].count += item.quantity;
-                
-                // Contar categorias (seria necessário buscar a categoria do produto)
-                // Por enquanto, vamos simplificar
-            });
+            return { id: docRef.id, ...dataToSave };
+        } catch (error) {
+            console.error("❌ Erro ao adicionar produto:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Atualiza produto existente
+     * @param {string} productId - ID do produto
+     * @param {Object} productData - Dados atualizados
+     * @returns {Object} Produto atualizado
+     */
+    updateProduct: async function(productId, productData) {
+        if (!db) throw new Error("Firestore não inicializado em updateProduct");
+        if (!productId) throw new Error("ID do produto é obrigatório");
+        if (!productData) throw new Error("Dados do produto são obrigatórios");
+        
+        try {
+            console.log("✏️ Atualizando produto:", productId, productData);
             
-            // Atualizar dados do cliente
-            await customerRef.update({
-                lastPurchaseDate: firebase.firestore.FieldValue.serverTimestamp(),
-                firstPurchaseDate: currentData.firstPurchaseDate || firebase.firestore.FieldValue.serverTimestamp(),
-                totalPurchases: totalPurchases,
-                totalSpent: totalSpent,
-                averageTicket: totalSpent / totalPurchases,
+            const dataToUpdate = {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
             
-            console.log("✅ Estatísticas do cliente atualizadas");
+            // Atualizar apenas campos fornecidos
+            if (productData.name !== undefined) {
+                dataToUpdate.name = String(productData.name).trim();
+            }
+            if (productData.category !== undefined) {
+                dataToUpdate.category = String(productData.category).trim();
+            }
+            if (productData.price !== undefined) {
+                dataToUpdate.price = Number(productData.price) || 0;
+            }
+            if (productData.stock !== undefined) {
+                dataToUpdate.stock = Number(productData.stock) || 0;
+            }
+            if (productData.lowStockAlert !== undefined) {
+                dataToUpdate.lowStockAlert = Number(productData.lowStockAlert) || 10;
+            }
             
+            await db.collection('products').doc(productId).update(dataToUpdate);
+            console.log("✅ Produto atualizado:", productId);
+            
+            return { id: productId, ...dataToUpdate };
         } catch (error) {
-            console.error("❌ Erro ao atualizar estatísticas do cliente:", error);
+            console.error("❌ Erro ao atualizar produto:", error);
+            throw error;
         }
     },
 
     /**
-     * Buscar histórico de compras do cliente
-     * @param {string} customerId - ID do cliente
-     * @returns {Array} Lista de vendas do cliente
+     * Remove produto
+     * @param {string} productId - ID do produto
+     * @returns {boolean} Sucesso da operação
      */
-    getCustomerPurchaseHistory: async function(customerId) {
-        if (!db) throw new Error("Firestore não inicializado");
-        if (!customerId) throw new Error("ID do cliente é obrigatório");
+    deleteProduct: async function(productId) {
+        if (!db) throw new Error("Firestore não inicializado em deleteProduct");
+        if (!productId) throw new Error("ID do produto é obrigatório");
         
         try {
-            console.log("🛒 Buscando histórico de compras do cliente:", customerId);
+            console.log("🗑️ Removendo produto:", productId);
+            
+            // Verificar se o produto existe
+            const productRef = db.collection('products').doc(productId);
+            const productDoc = await productRef.get();
+            
+            if (!productDoc.exists) {
+                throw new Error("Produto não encontrado");
+            }
+            
+            await productRef.delete();
+            console.log("✅ Produto removido:", productId);
+            
+            return true;
+        } catch (error) {
+            console.error("❌ Erro ao deletar produto:", error);
+            throw error;
+        }
+    },
+
+    // === FUNÇÕES DE VENDAS ===
+    
+    /**
+     * Busca todas as vendas
+     * @returns {Array} Lista de vendas
+     */
+    getSales: async function() {
+        if (!db) throw new Error("Firestore não inicializado em getSales");
+        
+        try {
+            console.log("🔍 Buscando vendas...");
             
             const snapshot = await db.collection('sales')
-                .where('customerId', '==', customerId)
                 .orderBy('date', 'desc')
                 .get();
             
-            const purchases = [];
-            snapshot.forEach(doc => {
-                purchases.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            });
-            
-            console.log("✅ Compras encontradas:", purchases.length);
-            return purchases;
-            
-        } catch (error) {
-            console.error("❌ Erro ao buscar histórico de compras:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Buscar clientes inativos
-     * @param {number} days - Dias de inatividade
-     * @returns {Array} Lista de clientes inativos
-     */
-    getInactiveCustomers: async function(days = 30) {
-        if (!db) throw new Error("Firestore não inicializado");
-        
-        try {
-            console.log(`🔍 Buscando clientes inativos há mais de ${days} dias`);
-            
-            const inactiveDate = new Date();
-            inactiveDate.setDate(inactiveDate.getDate() - days);
-            
-            const snapshot = await db.collection('customers')
-                .where('lastPurchaseDate', '<=', firebase.firestore.Timestamp.fromDate(inactiveDate))
-                .orderBy('lastPurchaseDate', 'desc')
-                .get();
-            
-            const inactiveCustomers = [];
+            const sales = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                inactiveCustomers.push({
+                sales.push({
                     id: doc.id,
                     ...data,
-                    daysSinceLastPurchase: Math.floor(
-                        (new Date() - data.lastPurchaseDate?.toDate()) / (1000 * 60 * 60 * 24)
-                    )
+                    total: Number(data.total) || 0
                 });
             });
             
-            console.log("✅ Clientes inativos encontrados:", inactiveCustomers.length);
-            return inactiveCustomers;
-            
+            console.log("✅ Vendas encontradas:", sales.length);
+            return sales;
         } catch (error) {
-            console.error("❌ Erro ao buscar clientes inativos:", error);
+            console.error("❌ Erro ao buscar vendas:", error);
             throw error;
         }
     },
 
     /**
-     * Análise de preferências do cliente
-     * @param {string} customerId - ID do cliente
-     * @returns {Object} Análise de preferências
+     * Busca vendas por vendedor
+     * @param {string} sellerId - ID do vendedor
+     * @returns {Array} Lista de vendas do vendedor
      */
-    analyzeCustomerPreferences: async function(customerId) {
-        if (!db) throw new Error("Firestore não inicializado");
-        if (!customerId) throw new Error("ID do cliente é obrigatório");
+    getSalesBySeller: async function(sellerId) {
+        if (!db) throw new Error("Firestore não inicializado em getSalesBySeller");
+        if (!sellerId) throw new Error("ID do vendedor é obrigatório");
         
         try {
-            console.log("📊 Analisando preferências do cliente:", customerId);
+            console.log("🔍 Buscando vendas do vendedor:", sellerId);
             
-            // Buscar histórico de compras
-            const purchases = await this.getCustomerPurchaseHistory(customerId);
+            const snapshot = await db.collection('sales')
+                .where('sellerId', '==', sellerId)
+                .orderBy('date', 'desc')
+                .get();
             
-            if (purchases.length === 0) {
-                return {
-                    favoriteProducts: [],
-                    favoriteCategories: [],
-                    purchasePatterns: {},
-                    recommendations: []
-                };
-            }
-            
-            // Analisar produtos
-            const productStats = {};
-            const categoryStats = {};
-            let totalSpent = 0;
-            
-            for (const purchase of purchases) {
-                if (purchase.productsDetail && Array.isArray(purchase.productsDetail)) {
-                    for (const item of purchase.productsDetail) {
-                        // Estatísticas de produtos
-                        if (!productStats[item.productId]) {
-                            productStats[item.productId] = {
-                                id: item.productId,
-                                name: item.name,
-                                quantity: 0,
-                                revenue: 0,
-                                purchases: 0
-                            };
-                        }
-                        
-                        productStats[item.productId].quantity += item.quantity;
-                        productStats[item.productId].revenue += item.quantity * item.unitPrice;
-                        productStats[item.productId].purchases += 1;
-                        
-                        totalSpent += item.quantity * item.unitPrice;
-                        
-                        // Buscar categoria do produto
-                        try {
-                            const product = await DataService.getProductById(item.productId);
-                            if (product && product.category) {
-                                if (!categoryStats[product.category]) {
-                                    categoryStats[product.category] = {
-                                        name: product.category,
-                                        quantity: 0,
-                                        revenue: 0,
-                                        purchases: 0
-                                    };
-                                }
-                                
-                                categoryStats[product.category].quantity += item.quantity;
-                                categoryStats[product.category].revenue += item.quantity * item.unitPrice;
-                                categoryStats[product.category].purchases += 1;
-                            }
-                        } catch (err) {
-                            console.warn("Erro ao buscar categoria do produto:", err);
-                        }
-                    }
-                }
-            }
-            
-            // Ordenar por relevância
-            const favoriteProducts = Object.values(productStats)
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 5);
-            
-            const favoriteCategories = Object.values(categoryStats)
-                .sort((a, b) => b.revenue - a.revenue)
-                .slice(0, 3);
-            
-            // Padrões de compra
-            const purchasePatterns = {
-                totalPurchases: purchases.length,
-                totalSpent: totalSpent,
-                averageTicket: totalSpent / purchases.length,
-                purchaseFrequency: this.calculatePurchaseFrequency(purchases),
-                lastPurchase: purchases[0]?.date,
-                firstPurchase: purchases[purchases.length - 1]?.date
-            };
-            
-            // Gerar recomendações baseadas em preferências
-            const recommendations = await this.generateProductRecommendations(
-                favoriteCategories.map(c => c.name),
-                favoriteProducts.map(p => p.id)
-            );
-            
-            return {
-                favoriteProducts,
-                favoriteCategories,
-                purchasePatterns,
-                recommendations
-            };
-            
-        } catch (error) {
-            console.error("❌ Erro ao analisar preferências do cliente:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Calcular frequência de compra
-     * @param {Array} purchases - Lista de compras
-     * @returns {Object} Dados de frequência
-     */
-    calculatePurchaseFrequency: function(purchases) {
-        if (!purchases || purchases.length < 2) {
-            return {
-                averageDaysBetweenPurchases: null,
-                frequency: 'primeira_compra'
-            };
-        }
-        
-        // Calcular intervalo médio entre compras
-        let totalDays = 0;
-        for (let i = 1; i < purchases.length; i++) {
-            const date1 = purchases[i-1].date?.toDate ? purchases[i-1].date.toDate() : new Date(purchases[i-1].date);
-            const date2 = purchases[i].date?.toDate ? purchases[i].date.toDate() : new Date(purchases[i].date);
-            const daysBetween = Math.abs(date1 - date2) / (1000 * 60 * 60 * 24);
-            totalDays += daysBetween;
-        }
-        
-        const averageDays = totalDays / (purchases.length - 1);
-        
-        // Classificar frequência
-        let frequency;
-        if (averageDays <= 7) frequency = 'muito_frequente';
-        else if (averageDays <= 15) frequency = 'frequente';
-        else if (averageDays <= 30) frequency = 'regular';
-        else if (averageDays <= 60) frequency = 'ocasional';
-        else frequency = 'raro';
-        
-        return {
-            averageDaysBetweenPurchases: Math.round(averageDays),
-            frequency
-        };
-    },
-
-    /**
-     * Gerar recomendações de produtos
-     * @param {Array} favoriteCategories - Categorias favoritas
-     * @param {Array} purchasedProductIds - IDs de produtos já comprados
-     * @returns {Array} Lista de produtos recomendados
-     */
-    generateProductRecommendations: async function(favoriteCategories, purchasedProductIds) {
-        if (!db) return [];
-        
-        try {
-            // Buscar produtos das categorias favoritas que não foram comprados
-            const allProducts = await DataService.getProducts();
-            
-            const recommendations = allProducts
-                .filter(product => 
-                    favoriteCategories.includes(product.category) &&
-                    !purchasedProductIds.includes(product.id) &&
-                    product.stock > 0
-                )
-                .slice(0, 5);
-            
-            return recommendations;
-            
-        } catch (error) {
-            console.error("❌ Erro ao gerar recomendações:", error);
-            return [];
-        }
-    },
-
-    /**
-     * Gerar mensagem de promoção personalizada com IA
-     * @param {Object} customer - Dados do cliente
-     * @param {Object} preferences - Preferências analisadas
-     * @returns {Object} Mensagem gerada
-     */
-    generatePromotionalMessage: async function(customer, preferences) {
-        if (!customer || !preferences) throw new Error("Dados insuficientes para gerar mensagem");
-        
-        try {
-            console.log("🤖 Gerando mensagem promocional personalizada");
-            
-            const { favoriteProducts, favoriteCategories, purchasePatterns } = preferences;
-            
-            // Templates de mensagem baseados no perfil
-            const templates = {
-                muito_frequente: {
-                    greeting: `Olá ${customer.name}! Sentimos sua falta! 💙`,
-                    hook: 'Como nosso cliente VIP, preparamos uma oferta exclusiva para você!',
-                    type: 'VIP'
-                },
-                frequente: {
-                    greeting: `Oi ${customer.name}! Que bom ter você de volta! 😊`,
-                    hook: 'Temos novidades incríveis que combinam com seu estilo!',
-                    type: 'Fidelidade'
-                },
-                regular: {
-                    greeting: `Olá ${customer.name}! Como você está? 🌟`,
-                    hook: 'Preparamos ofertas especiais pensando em você!',
-                    type: 'Retorno'
-                },
-                ocasional: {
-                    greeting: `Oi ${customer.name}! Há quanto tempo! 👋`,
-                    hook: 'Que tal aproveitar essas ofertas imperdíveis?',
-                    type: 'Reengajamento'
-                },
-                raro: {
-                    greeting: `Olá ${customer.name}! Sentimos muito sua falta! ❤️`,
-                    hook: 'Temos uma surpresa especial para você voltar!',
-                    type: 'Reativação'
-                },
-                primeira_compra: {
-                    greeting: `Oi ${customer.name}! Bem-vindo! 🎉`,
-                    hook: 'Como novo cliente, temos um presente especial para você!',
-                    type: 'Boas-vindas'
-                }
-            };
-            
-            const frequency = purchasePatterns.purchaseFrequency || 'regular';
-            const template = templates[frequency] || templates.regular;
-            
-            // Construir mensagem
-            let message = `${template.greeting}\n\n${template.hook}\n\n`;
-            
-            // Adicionar produtos recomendados
-            if (favoriteCategories.length > 0) {
-                message += `✨ Baseado no seu interesse em ${favoriteCategories[0].name}:\n`;
-                
-                if (preferences.recommendations && preferences.recommendations.length > 0) {
-                    preferences.recommendations.slice(0, 3).forEach(product => {
-                        const discount = Math.floor(Math.random() * 15) + 10; // 10-25% desconto
-                        const newPrice = product.price * (1 - discount/100);
-                        message += `\n📍 ${product.name}\n`;
-                        message += `   De R$ ${product.price.toFixed(2)} por R$ ${newPrice.toFixed(2)} (${discount}% OFF!)\n`;
-                    });
-                }
-            }
-            
-            // Adicionar incentivo baseado no histórico
-            if (purchasePatterns.averageTicket > 100) {
-                message += `\n💳 FRETE GRÁTIS em compras acima de R$ ${Math.floor(purchasePatterns.averageTicket * 0.8)},00!`;
-            } else {
-                message += `\n🎁 Ganhe 10% de desconto extra usando o cupom: VOLTEI${new Date().getMonth() + 1}`;
-            }
-            
-            // Call to action
-            message += `\n\n📱 Válido até ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}`;
-            message += `\n\nAproveite! Estamos esperando por você! 😊`;
-            
-            // Metadados da promoção
-            const promotion = {
-                type: template.type,
-                message: message,
-                customerId: customer.id,
-                customerName: customer.name,
-                validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                recommendations: preferences.recommendations?.slice(0, 3) || [],
-                generatedAt: new Date()
-            };
-            
-            // Salvar promoção no histórico
-            await this.savePromotionHistory(promotion);
-            
-            return promotion;
-            
-        } catch (error) {
-            console.error("❌ Erro ao gerar mensagem promocional:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Salvar histórico de promoções
-     * @param {Object} promotion - Dados da promoção
-     */
-    savePromotionHistory: async function(promotion) {
-        if (!db) return;
-        
-        try {
-            await db.collection('promotions').add({
-                ...promotion,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            const sales = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                sales.push({
+                    id: doc.id,
+                    ...data,
+                    total: Number(data.total) || 0
+                });
             });
             
-            console.log("✅ Promoção salva no histórico");
+            console.log("✅ Vendas do vendedor encontradas:", sales.length);
+            return sales;
         } catch (error) {
-            console.error("❌ Erro ao salvar promoção:", error);
+            console.error("❌ Erro ao buscar vendas por vendedor:", error);
+            throw error;
         }
     },
 
     /**
-     * Buscar sugestões de clientes para autocompletar
-     * @param {string} searchTerm - Termo de busca
-     * @returns {Array} Lista de sugestões
+     * Adiciona nova venda
+     * @param {Object} saleData - Dados básicos da venda
+     * @param {Array} productsSoldDetails - Detalhes dos produtos vendidos
+     * @param {string} sellerName - Nome do vendedor
+     * @returns {Object} Venda criada
      */
-    searchCustomers: async function(searchTerm) {
-        if (!db || !searchTerm || searchTerm.length < 2) return [];
-        
-        try {
-            const searchLower = searchTerm.toLowerCase();
-            const customers = await this.getCustomers();
-            
-            return customers
-                .filter(customer => 
-                    customer.name.toLowerCase().includes(searchLower) ||
-                    customer.phone.includes(searchTerm) ||
-                    (customer.email && customer.email.toLowerCase().includes(searchLower))
-                )
-                .slice(0, 10)
-                .map(customer => ({
-                    id: customer.id,
-                    name: customer.name,
-                    phone: customer.phone,
-                    email: customer.email,
-                    label: `${customer.name} - ${customer.phone}`
-                }));
-                
-        } catch (error) {
-            console.error("❌ Erro ao buscar sugestões de clientes:", error);
-            return [];
+    addSale: async function(saleData, productsSoldDetails, sellerName) {
+        if (!db) throw new Error("Firestore não inicializado em addSale");
+        if (!saleData || !productsSoldDetails || !Array.isArray(productsSoldDetails)) {
+            throw new Error("Dados da venda são obrigatórios");
         }
-    },
-
-    /**
-     * Dashboard de insights de clientes
-     * @returns {Object} Insights agregados
-     */
-    getCustomerInsights: async function() {
-        if (!db) throw new Error("Firestore não inicializado");
+        
+        const batch = db.batch();
         
         try {
-            console.log("📊 Gerando insights de clientes");
+            console.log("➕ Adicionando venda:", saleData, productsSoldDetails);
             
-            const customers = await this.getCustomers();
-            const now = new Date();
-            
-            // Métricas básicas
-            const totalCustomers = customers.length;
-            const activeCustomers = customers.filter(c => c.status === 'active').length;
-            
-            // Segmentação por frequência
-            const segmentation = {
-                vip: 0,
-                frequente: 0,
-                regular: 0,
-                ocasional: 0,
-                inativos: 0,
-                novos: 0
-            };
-            
-            // Análise de valor
-            let totalRevenue = 0;
-            let bestCustomers = [];
-            
-            for (const customer of customers) {
-                totalRevenue += customer.totalSpent || 0;
-                
-                // Classificar cliente
-                if (!customer.lastPurchaseDate) {
-                    segmentation.novos++;
-                } else {
-                    const daysSinceLastPurchase = Math.floor(
-                        (now - customer.lastPurchaseDate.toDate()) / (1000 * 60 * 60 * 24)
-                    );
-                    
-                    if (daysSinceLastPurchase > 90) {
-                        segmentation.inativos++;
-                    } else if (customer.totalPurchases >= 10) {
-                        segmentation.vip++;
-                    } else if (customer.totalPurchases >= 5) {
-                        segmentation.frequente++;
-                    } else if (customer.totalPurchases >= 2) {
-                        segmentation.regular++;
-                    } else {
-                        segmentation.ocasional++;
-                    }
-                }
-                
-                if (customer.totalSpent > 0) {
-                    bestCustomers.push({
-                        id: customer.id,
-                        name: customer.name,
-                        totalSpent: customer.totalSpent,
-                        totalPurchases: customer.totalPurchases,
-                        averageTicket: customer.averageTicket
-                    });
+            // Validar produtos
+            for (const item of productsSoldDetails) {
+                if (!item.productId || !item.quantity || item.quantity <= 0) {
+                    throw new Error(`Dados inválidos para o produto: ${item.name || 'Desconhecido'}`);
                 }
             }
             
-            // Ordenar melhores clientes
-            bestCustomers.sort((a, b) => b.totalSpent - a.totalSpent);
+            // Calcular total
+            const calculatedTotal = productsSoldDetails.reduce((sum, item) => {
+                return sum + (Number(item.quantity) * Number(item.unitPrice || 0));
+            }, 0);
             
-            // Calcular taxa de retenção
-            const customersWithPurchases = customers.filter(c => c.totalPurchases > 0).length;
-            const retentionRate = totalCustomers > 0 ? 
-                (customersWithPurchases / totalCustomers * 100).toFixed(1) : 0;
+            // Criar documento da venda
+            const saleDocRef = db.collection('sales').doc();
+            const currentUser = firebase.auth().currentUser;
             
-            return {
-                totalCustomers,
-                activeCustomers,
-                segmentation,
-                totalRevenue,
-                averageCustomerValue: totalCustomers > 0 ? totalRevenue / totalCustomers : 0,
-                retentionRate,
-                bestCustomers: bestCustomers.slice(0, 10),
-                insights: {
-                    inactiveAlert: segmentation.inativos,
-                    vipPercentage: totalCustomers > 0 ? 
-                        (segmentation.vip / totalCustomers * 100).toFixed(1) : 0
-                }
+            const salePayload = {
+                date: saleData.date || firebase.firestore.Timestamp.now(),
+                sellerId: currentUser?.uid || 'unknown',
+                sellerName: sellerName || currentUser?.email || 'Vendedor Desconhecido',
+                productsDetail: productsSoldDetails.map(p => ({
+                    productId: p.productId,
+                    name: p.name,
+                    quantity: Number(p.quantity),
+                    unitPrice: Number(p.unitPrice || 0)
+                })),
+                total: calculatedTotal,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
+            batch.set(saleDocRef, salePayload);
+            
+            // Atualizar estoque dos produtos
+            for (const item of productsSoldDetails) {
+                const productRef = db.collection('products').doc(item.productId);
+                batch.update(productRef, {
+                    stock: firebase.firestore.FieldValue.increment(-Number(item.quantity)),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            
+            // Executar transação
+            await batch.commit();
+            console.log("✅ Venda adicionada e estoque atualizado:", saleDocRef.id);
+            
+            return { id: saleDocRef.id, ...salePayload };
+            
         } catch (error) {
-            console.error("❌ Erro ao gerar insights de clientes:", error);
+            console.error("❌ Erro ao adicionar venda:", error);
             throw error;
         }
+    },
+
+    // === FUNÇÕES DE ESTATÍSTICAS ===
+    
+    /**
+     * Obtém estatísticas de produtos
+     * @returns {Object} Estatísticas dos produtos
+     */
+    getProductStats: async function() {
+        if (!db) throw new Error("Firestore não inicializado em getProductStats");
+        
+        try {
+            console.log("📊 Calculando estatísticas de produtos...");
+            
+            const stats = {
+                totalProducts: 0,
+                lowStock: 0,
+                outOfStock: 0,
+                categories: {},
+                averagePrice: 0,
+                totalInventoryValue: 0
+            };
+            
+            const productsSnapshot = await db.collection('products').get();
+            stats.totalProducts = productsSnapshot.size;
+            
+            let totalPrice = 0;
+            let totalValue = 0;
+            
+            productsSnapshot.forEach(doc => {
+                const product = doc.data();
+                const price = Number(product.price) || 0;
+                const stock = Number(product.stock) || 0;
+                const lowStockThreshold = Number(product.lowStockAlert) || 10; // Usar valor personalizado
+                
+                // Contagem por categoria
+                const category = product.category || 'Sem categoria';
+                stats.categories[category] = (stats.categories[category] || 0) + 1;
+                
+                // Estoque baixo (usando valor personalizado de cada produto)
+                if (stock <= lowStockThreshold && stock > 0) {
+                    stats.lowStock++;
+                }
+                
+                // Sem estoque
+                if (stock === 0) {
+                    stats.outOfStock++;
+                }
+                
+                // Cálculos de preço e valor
+                totalPrice += price;
+                totalValue += (price * stock);
+            });
+            
+            stats.averagePrice = stats.totalProducts > 0 ? totalPrice / stats.totalProducts : 0;
+            stats.totalInventoryValue = totalValue;
+            
+            console.log("✅ Estatísticas de produtos calculadas:", stats);
+            return stats;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar estatísticas de produtos:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém estatísticas de vendas
+     * @returns {Object} Estatísticas das vendas
+     */
+    getSalesStats: async function() {
+        if (!db) throw new Error("Firestore não inicializado em getSalesStats");
+        
+        try {
+            console.log("📊 Calculando estatísticas de vendas...");
+            
+            const stats = {
+                totalSales: 0,
+                todaySales: 0,
+                weekSales: 0,
+                monthSales: 0,
+                totalRevenue: 0,
+                todayRevenue: 0,
+                weekRevenue: 0,
+                monthRevenue: 0,
+                averageTicket: 0
+            };
+            
+            const salesSnapshot = await db.collection('sales').get();
+            stats.totalSales = salesSnapshot.size;
+            
+            // Calcular datas de referência
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startOfWeek = new Date(startOfToday);
+            startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            let totalRevenueSum = 0;
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                const saleTotal = Number(sale.total) || 0;
+                const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+                
+                totalRevenueSum += saleTotal;
+                
+                if (saleDate >= startOfToday) {
+                    stats.todaySales++;
+                    stats.todayRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfWeek) {
+                    stats.weekSales++;
+                    stats.weekRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfMonth) {
+                    stats.monthSales++;
+                    stats.monthRevenue += saleTotal;
+                }
+            });
+            
+            stats.totalRevenue = totalRevenueSum;
+            stats.averageTicket = stats.totalSales > 0 ? stats.totalRevenue / stats.totalSales : 0;
+            
+            console.log("✅ Estatísticas de vendas calculadas:", stats);
+            return stats;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar estatísticas de vendas:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém produtos mais vendidos
+     * @param {number} limit - Limite de produtos a retornar
+     * @returns {Array} Lista dos produtos mais vendidos
+     */
+    getTopProducts: async function(limit = 5) {
+        if (!db) throw new Error("Firestore não inicializado em getTopProducts");
+        
+        try {
+            console.log("🔍 Buscando top produtos, limite:", limit);
+            
+            const salesSnapshot = await db.collection('sales').get();
+            const productCounts = {};
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                if (sale.productsDetail && Array.isArray(sale.productsDetail)) {
+                    sale.productsDetail.forEach(item => {
+                        if (item.productId && item.name) {
+                            const key = item.productId;
+                            if (!productCounts[key]) {
+                                productCounts[key] = {
+                                    productId: item.productId,
+                                    name: item.name,
+                                    count: 0,
+                                    revenue: 0
+                                };
+                            }
+                            productCounts[key].count += Number(item.quantity) || 0;
+                            productCounts[key].revenue += (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                        }
+                    });
+                }
+            });
+            
+            const sortedProducts = Object.values(productCounts)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, limit);
+            
+            console.log("✅ Top produtos encontrados:", sortedProducts);
+            return sortedProducts;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar top produtos:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém estatísticas de vendas por vendedor específico
+     * @param {string} sellerId - ID do vendedor
+     * @returns {Object} Estatísticas das vendas do vendedor
+     */
+    getSalesStatsBySeller: async function(sellerId) {
+        if (!db) throw new Error("Firestore não inicializado em getSalesStatsBySeller");
+        if (!sellerId) throw new Error("ID do vendedor é obrigatório");
+        
+        try {
+            console.log("📊 Calculando estatísticas de vendas para vendedor:", sellerId);
+            
+            const stats = {
+                totalSales: 0,
+                todaySales: 0,
+                weekSales: 0,
+                monthSales: 0,
+                totalRevenue: 0,
+                todayRevenue: 0,
+                weekRevenue: 0,
+                monthRevenue: 0,
+                averageTicket: 0
+            };
+            
+            const salesSnapshot = await db.collection('sales')
+                .where('sellerId', '==', sellerId)
+                .get();
+            
+            stats.totalSales = salesSnapshot.size;
+            
+            // Calcular datas de referência
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startOfWeek = new Date(startOfToday);
+            startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            
+            let totalRevenueSum = 0;
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                const saleTotal = Number(sale.total) || 0;
+                const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date);
+                
+                totalRevenueSum += saleTotal;
+                
+                if (saleDate >= startOfToday) {
+                    stats.todaySales++;
+                    stats.todayRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfWeek) {
+                    stats.weekSales++;
+                    stats.weekRevenue += saleTotal;
+                }
+                
+                if (saleDate >= startOfMonth) {
+                    stats.monthSales++;
+                    stats.monthRevenue += saleTotal;
+                }
+            });
+            
+            stats.totalRevenue = totalRevenueSum;
+            stats.averageTicket = stats.totalSales > 0 ? stats.totalRevenue / stats.totalSales : 0;
+            
+            console.log("✅ Estatísticas do vendedor calculadas:", stats);
+            return stats;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar estatísticas por vendedor:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém produtos mais vendidos por vendedor específico
+     * @param {string} sellerId - ID do vendedor
+     * @param {number} limit - Limite de produtos a retornar
+     * @returns {Array} Lista dos produtos mais vendidos pelo vendedor
+     */
+    getTopProductsBySeller: async function(sellerId, limit = 5) {
+        if (!db) throw new Error("Firestore não inicializado em getTopProductsBySeller");
+        if (!sellerId) throw new Error("ID do vendedor é obrigatório");
+        
+        try {
+            console.log("🔍 Buscando top produtos do vendedor:", sellerId, "limite:", limit);
+            
+            const salesSnapshot = await db.collection('sales')
+                .where('sellerId', '==', sellerId)
+                .get();
+            
+            const productCounts = {};
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                if (sale.productsDetail && Array.isArray(sale.productsDetail)) {
+                    sale.productsDetail.forEach(item => {
+                        if (item.productId && item.name) {
+                            const key = item.productId;
+                            if (!productCounts[key]) {
+                                productCounts[key] = {
+                                    productId: item.productId,
+                                    name: item.name,
+                                    count: 0,
+                                    revenue: 0
+                                };
+                            }
+                            productCounts[key].count += Number(item.quantity) || 0;
+                            productCounts[key].revenue += (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                        }
+                    });
+                }
+            });
+            
+            const sortedProducts = Object.values(productCounts)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, limit);
+            
+            console.log("✅ Top produtos do vendedor encontrados:", sortedProducts);
+            return sortedProducts;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar top produtos por vendedor:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Obtém vendedores com melhor performance
+     * @param {number} limit - Limite de vendedores a retornar
+     * @returns {Array} Lista dos melhores vendedores
+     */
+    getTopSellers: async function(limit = 5) {
+        if (!db) throw new Error("Firestore não inicializado em getTopSellers");
+        
+        try {
+            console.log("🔍 Buscando top vendedores, limite:", limit);
+            
+            const salesSnapshot = await db.collection('sales').get();
+            const sellerStats = {};
+            
+            salesSnapshot.forEach(doc => {
+                const sale = doc.data();
+                const sellerId = sale.sellerId || 'unknown';
+                const sellerName = sale.sellerName || 'Desconhecido';
+                const saleTotal = Number(sale.total) || 0;
+                
+                if (!sellerStats[sellerId]) {
+                    sellerStats[sellerId] = {
+                        sellerId: sellerId,
+                        sellerName: sellerName,
+                        salesCount: 0,
+                        totalRevenue: 0
+                    };
+                }
+                
+                sellerStats[sellerId].salesCount++;
+                sellerStats[sellerId].totalRevenue += saleTotal;
+            });
+            
+            const sortedSellers = Object.values(sellerStats)
+                .sort((a, b) => b.totalRevenue - a.totalRevenue)
+                .slice(0, limit);
+            
+            console.log("✅ Top vendedores encontrados:", sortedSellers);
+            return sortedSellers;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar top vendedores:", error);
+            throw error;
+        }
+    },
+
+    // === FUNÇÕES AUXILIARES ===
+    
+    /**
+     * Verifica se o Firestore está disponível
+     * @returns {boolean} Status da conexão
+     */
+    isConnected: function() {
+        return !!db;
+    },
+
+    /**
+     * Obtém timestamp do servidor
+     * @returns {firebase.firestore.FieldValue} Timestamp do servidor
+     */
+    getServerTimestamp: function() {
+        return firebase.firestore.FieldValue.serverTimestamp();
+    },
+
+    /**
+     * Valida dados de produto
+     * @param {Object} productData - Dados do produto
+     * @returns {Object} Dados validados
+     */
+    validateProductData: function(productData) {
+        if (!productData) {
+            throw new Error("Dados do produto são obrigatórios");
+        }
+        
+        const errors = [];
+        
+        if (!productData.name || typeof productData.name !== 'string' || productData.name.trim() === '') {
+            errors.push("Nome do produto é obrigatório");
+        }
+        
+        if (!productData.category || typeof productData.category !== 'string' || productData.category.trim() === '') {
+            errors.push("Categoria do produto é obrigatória");
+        }
+        
+        const price = Number(productData.price);
+        if (isNaN(price) || price < 0) {
+            errors.push("Preço deve ser um número válido e não negativo");
+        }
+        
+        const stock = Number(productData.stock);
+        if (isNaN(stock) || stock < 0 || !Number.isInteger(stock)) {
+            errors.push("Estoque deve ser um número inteiro válido e não negativo");
+        }
+        
+        const lowStockAlert = Number(productData.lowStockAlert);
+        if (isNaN(lowStockAlert) || lowStockAlert < 1 || !Number.isInteger(lowStockAlert)) {
+            errors.push("Alerta de estoque baixo deve ser um número inteiro válido e maior que 0");
+        }
+        
+        if (errors.length > 0) {
+            throw new Error("Dados inválidos: " + errors.join(", "));
+        }
+        
+        return {
+            name: productData.name.trim(),
+            category: productData.category.trim(),
+            price: price,
+            stock: stock,
+            lowStockAlert: lowStockAlert
+        };
     }
 };
 
-// Expor o serviço globalmente
-window.CRMService = CRMService;
+// Tornar o DataService disponível globalmente
+window.DataService = DataService;
 
-console.log("✅ CRM Service inicializado");
+// Log de inicialização
+console.log("✅ Firebase DataService inicializado e pronto para uso");
