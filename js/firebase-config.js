@@ -39,58 +39,96 @@ let auth, db;
 
 try {
   auth = firebase.auth();
-  db = firebase.firestore();
-  
+  db = firebase.firestore(); // Firestore é instanciado aqui
+
+  // --- INÍCIO DA SEÇÃO CORRIGIDA ---
+
+  // Configurações de desenvolvimento vs produção
+  const isDevelopment = location.hostname === 'localhost' ||
+                       location.hostname === '127.0.0.1' ||
+                       location.hostname.includes('localhost:'); // Mais específico para localhost com porta
+
+  if (isDevelopment) {
+    console.log('🔧 Modo de desenvolvimento ativo. Configurando emulador do Firestore...');
+    // Aplicar configurações do emulador PRIMEIRO para o objeto db
+    // É crucial que esta seja a primeira operação de settings no objeto 'db'
+    // se você pretende usar o emulador.
+    try {
+        db.settings({
+            host: 'localhost:8080', // Endereço do emulador Firestore
+            ssl: false,
+            // experimentalForceLongPolling: true, // Descomente se necessário para o emulador
+        });
+        console.log('🛠️ Emulador do Firestore configurado para localhost:8080');
+        firebase.firestore.setLogLevel('debug'); // Habilitar logs detalhados em desenvolvimento
+    } catch (e) {
+        // Este erro "Firestore has already been started" pode acontecer se o db já foi usado.
+        if (e.message.includes("already been started")) {
+            console.warn("⚠️ Firestore já iniciado, não foi possível reconfigurar para emulador. Isso pode ser normal em HMR ou se outra config foi aplicada antes.");
+        } else {
+            console.error("❌ Erro ao configurar emulador do Firestore:", e);
+        }
+    }
+  } else {
+    console.log('🚀 Modo de produção ativo');
+    firebase.firestore.setLogLevel('silent'); // Desabilitar logs em produção
+  }
+
+  // Aplicar outras configurações gerais do Firestore DEPOIS da configuração do emulador (se houver)
+  // Estas configurações podem ser aplicadas mesmo que o emulador não esteja em uso.
+  try {
+    db.settings({
+        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+        merge: true // Garante que as atualizações de documentos mesclem os dados
+    });
+    console.log('⚙️ Configurações gerais do Firestore (cache, merge) aplicadas.');
+  } catch(e) {
+    // Se o erro for "already been started" e não estamos em desenvolvimento (onde já tentamos o emulador),
+    // então algo está chamando settings() fora de ordem.
+    // Se for em desenvolvimento e o emulador já foi configurado, este erro pode ser ignorado para estas settings.
+    if (e.message.includes("already been started") && !isDevelopment) {
+        console.warn("⚠️ Firestore já iniciado, não foi possível aplicar configurações gerais (cache, merge). Verifique a ordem das inicializações.");
+    } else if (!e.message.includes("already been started")) { // Logar outros erros
+        console.error("❌ Erro ao aplicar configurações gerais do Firestore:", e);
+    }
+  }
+
+  // Habilitar persistência offline (opcional, mas se usado, depois das settings)
+  // A persistência pode ser habilitada uma única vez.
+  db.enablePersistence({ synchronizeTabs: true })
+    .then(() => {
+      console.log('✅ Persistência offline habilitada');
+    })
+    .catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('⚠️ Múltiplas abas abertas, persistência offline pode ser afetada ou desabilitada em uma das abas.');
+      } else if (err.code === 'unimplemented') {
+        console.warn('⚠️ Navegador não suporta persistência offline.');
+      } else {
+        console.error('❌ Erro ao habilitar persistência offline:', err);
+      }
+    });
+
+  // --- FIM DA SEÇÃO CORRIGIDA ---
+
   console.log('✅ Serviços Firebase configurados:');
   console.log('   - Authentication: ✅');
   console.log('   - Firestore: ✅');
-  
-  // Habilitar persistência offline (opcional) - COMENTADO para evitar problemas
-  // db.enablePersistence({ synchronizeTabs: true })
-  //   .then(() => {
-  //     console.log('✅ Persistência offline habilitada');
-  //   })
-  //   .catch((err) => {
-  //     if (err.code === 'failed-precondition') {
-  //       console.warn('⚠️ Múltiplas abas abertas, persistência offline desabilitada');
-  //     } else if (err.code === 'unimplemented') {
-  //       console.warn('⚠️ Navegador não suporta persistência offline');
-  //     }
-  //   });
-  
+
 } catch (error) {
   console.error('❌ Erro ao configurar serviços Firebase:', error);
-  throw error;
+  throw error; // Re-throw para que o erro seja visível e interrompa se crítico
 }
 
-// Configurações de desenvolvimento vs produção - REMOVIDO O MODO LOCAL
-const isDevelopment = location.hostname === 'localhost' || 
-                     location.hostname === '127.0.0.1' || 
-                     location.hostname.includes('localhost');
-
-if (isDevelopment) {
-  console.log('🔧 Modo de desenvolvimento ativo');
-  // NÃO conectar ao emulador local por padrão
-  // Se quiser usar o emulador, descomente as linhas abaixo:
-  // auth.useEmulator('http://localhost:9099');
-  // db.useEmulator('localhost', 8080);
-} else {
-  console.log('🚀 Modo de produção ativo');
-}
 
 // Função utilitária para verificar conexão
 window.checkFirebaseConnection = async function() {
   try {
     // Tentar uma operação simples para verificar conectividade
-    const testDoc = await db.collection('_test').doc('connection').get();
+    await db.collection('_test').limit(1).get();
     console.log('✅ Conexão com Firestore verificada');
     return true;
   } catch (error) {
-    // Ignorar erro se for apenas documento não encontrado
-    if (error.code === 'permission-denied') {
-      console.log('✅ Firestore conectado (permissão negada é esperada para _test)');
-      return true;
-    }
     console.error('❌ Erro de conexão com Firestore:', error);
     return false;
   }
@@ -115,13 +153,6 @@ window.addEventListener('offline', () => {
   console.warn('📡 Conexão offline - dados serão sincronizados quando voltar online');
 });
 
-// Tratar erros de rede automaticamente
-if (db.onSnapshotsInSync) {
-  db.onSnapshotsInSync(() => {
-    console.log('📡 Dados sincronizados com o servidor');
-  });
-}
-
 // Expor instâncias globalmente para acesso em outros scripts
 window.firebase = firebase;
 window.auth = auth;
@@ -131,12 +162,3 @@ window.db = db;
 console.log('🎉 Firebase EliteControl configurado e pronto para uso!');
 console.log('📊 Projeto:', firebaseConfig.projectId);
 console.log('🔐 Domínio:', firebaseConfig.authDomain);
-
-// Teste rápido de autenticação
-auth.onAuthStateChanged((user) => {
-  if (user) {
-    console.log('👤 Usuário autenticado:', user.email);
-  } else {
-    console.log('👤 Nenhum usuário autenticado');
-  }
-});
