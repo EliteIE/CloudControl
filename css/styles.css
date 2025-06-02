@@ -1020,6 +1020,95 @@ table {
     color: var(--color-text-muted);
 }
 
+/* === MODAL STYLES === */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.modal-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border-radius: 1rem;
+    border: 1px solid rgba(51, 65, 85, 0.5);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 500px;
+    transform: scale(0.95);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.modal-content.show {
+    transform: scale(1);
+    opacity: 1;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #F1F5F9;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: #94A3B8;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: #F1F5F9;
+    background: rgba(51, 65, 85, 0.5);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(51, 65, 85, 0.5);
+}
+
 /* === UTILITÁRIOS === */
 .hidden {
     display: none !important;
