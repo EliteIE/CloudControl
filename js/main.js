@@ -70,11 +70,15 @@ function initializeModalElements() {
 // === AUTENTICAÇÃO E NAVEGAÇÃO ===
 
 async function handleAuthStateChange(user) {
-    console.log('🔐 Estado de autenticação alterado:', user ? 'Logado' : 'Deslogado');
+    console.log('🔐 Estado de autenticação alterado:', user ? `Logado como ${user.email}` : 'Deslogado');
+    console.log('📍 Página atual:', window.location.pathname);
+    console.log('📍 Hash atual:', window.location.hash);
     
     if (user) {
         try {
+            console.log("🔄 Iniciando processo pós-login...");
             await ensureTestDataExists();
+            // ... resto do código continua igual
             let userData = await DataService.getUserData(user.uid);
             
             if (!userData) {
@@ -101,10 +105,12 @@ async function handleAuthStateChange(user) {
             showTemporaryAlert("Erro ao carregar dados do usuário.", "error");
             
             if (!window.location.pathname.includes('index.html')) {
+                console.log("🔄 Fazendo logout devido a erro...");
                 await firebase.auth().signOut();
             }
         }
     } else {
+        console.log("👋 Usuário não autenticado, executando handleLoggedOut");
         handleLoggedOut();
     }
 }
@@ -3219,11 +3225,14 @@ function handleDeleteProductConfirmation(productId, productName) {
 
 async function handleLogin(e) {
     e.preventDefault();
-    console.log("🔑 Tentativa de login");
+    console.log("🔑 Tentativa de login iniciada");
     
     const email = document.getElementById('email')?.value?.trim();
     const password = document.getElementById('password')?.value;
     const perfil = document.getElementById('perfil')?.value;
+    
+    console.log("📧 Email:", email);
+    console.log("👤 Perfil selecionado:", perfil);
     
     if (!email || !password) {
         showLoginError('Por favor, preencha email e senha.');
@@ -3244,32 +3253,55 @@ async function handleLogin(e) {
     }
     
     try {
-        await firebase.auth().signInWithEmailAndPassword(email, password);
+        console.log("🔐 Tentando autenticar com Firebase...");
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+        console.log("✅ Autenticação bem-sucedida:", userCredential.user.email);
         
         const user = firebase.auth().currentUser;
         if (user) {
+            console.log("👤 Usuário atual:", user.uid, user.email);
+            
+            // Verificar se o Firestore está acessível
+            try {
+                const testConnection = await window.checkFirebaseConnection();
+                console.log("🔌 Conexão Firestore:", testConnection ? "OK" : "FALHA");
+            } catch (connError) {
+                console.error("❌ Erro ao testar conexão:", connError);
+            }
+            
             let userData = await DataService.getUserData(user.uid);
+            console.log("📋 Dados do usuário no Firestore:", userData);
             
             if (!userData) {
+                console.log("⚠️ Usuário não encontrado por UID, tentando por email...");
                 userData = await findUserByEmail(email);
+                console.log("📋 Dados encontrados por email:", userData);
             }
             
             if (!userData && testUsers[email]) {
+                console.log("🆕 Criando usuário de teste...");
                 userData = await createTestUser(user.uid, email);
+                console.log("✅ Usuário de teste criado:", userData);
             }
             
             if (userData && userData.role !== perfil) {
+                console.error("❌ Perfil incorreto. Esperado:", perfil, "Encontrado:", userData.role);
                 await firebase.auth().signOut();
                 showLoginError(`Perfil incorreto. Este usuário é ${userData.role}.`);
                 return;
             }
+            
+            console.log("✅ Login validado, aguardando redirecionamento...");
+            // O redirecionamento será feito pelo onAuthStateChanged
         }
         
         showLoginError('');
-        console.log("✅ Login realizado com sucesso");
+        console.log("✅ Processo de login concluído");
         
     } catch (error) {
-        console.error("❌ Erro de login:", error);
+        console.error("❌ Erro de login detalhado:", error);
+        console.error("   Código:", error.code);
+        console.error("   Mensagem:", error.message);
         
         let friendlyMessage = "Email ou senha inválidos.";
         
@@ -3290,6 +3322,8 @@ async function handleLogin(e) {
             case 'auth/too-many-requests':
                 friendlyMessage = "Muitas tentativas. Tente novamente mais tarde.";
                 break;
+            default:
+                friendlyMessage = `Erro: ${error.message}`;
         }
         
         showLoginError(friendlyMessage);
@@ -3301,7 +3335,6 @@ async function handleLogin(e) {
         }
     }
 }
-
 async function handleLogout() {
     console.log("👋 Fazendo logout");
     
