@@ -40,60 +40,13 @@ let auth, db;
 try {
   auth = firebase.auth();
   db = firebase.firestore();
-
-  // Configurações de desenvolvimento vs produção
-  const isDevelopment = location.hostname === 'localhost' ||
-                       location.hostname === '127.0.0.1' ||
-                       location.hostname.includes('localhost');
-
-  if (isDevelopment) {
-    console.log('🔧 Modo de desenvolvimento ativo');
-    // Configurações específicas para desenvolvimento (EMULADOR)
-    // Aplicar ANTES de outras configurações do Firestore ou uso do 'db'
-    try {
-        db.settings({
-            host: 'localhost:8080', // Endereço do emulador Firestore
-            ssl: false,
-            // experimentalForceLongPolling: true, // Descomente se necessário para o emulador
-            // merge: true // Pode ser útil, mas cuidado com a ordem
-        });
-        console.log('🛠️ Emulador do Firestore configurado para localhost:8080');
-    } catch (e) {
-        // Este erro "Firestore has already been started" pode acontecer se o db já foi usado.
-        // A verificação `firebase.apps.length` acima ajuda, mas esta é uma salvaguarda.
-        if (e.message.includes("already been started")) {
-            console.warn("⚠️ Firestore já iniciado, não foi possível reconfigurar para emulador. Isso pode ser normal em HMR.");
-        } else {
-            console.error("❌ Erro ao configurar emulador do Firestore:", e);
-        }
-    }
-    // Habilitar logs detalhados em desenvolvimento
-    firebase.firestore.setLogLevel('debug');
-  } else {
-    console.log('🚀 Modo de produção ativo');
-    // Desabilitar logs em produção
-    firebase.firestore.setLogLevel('silent');
-  }
-
-  // Configurações gerais do Firestore (aplicadas após a configuração do emulador, se houver)
-  // Nota: Algumas configurações como cacheSizeBytes podem precisar ser definidas antes do emulador
-  // ou podem causar conflito se o emulador já tiver sido "tocado".
-  // A ordem ideal é: initializeApp -> settings (emulador) -> settings (outras) -> enablePersistence
-  try {
-    db.settings({
-        cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED, // Pode ser útil definir antes do emulador
-        merge: true
-    });
-    console.log('⚙️ Configurações gerais do Firestore aplicadas.');
-  } catch(e) {
-    if (e.message.includes("already been started")) {
-        console.warn("⚠️ Firestore já iniciado, não foi possível aplicar configurações gerais. Isso pode ser normal em HMR.");
-    } else {
-        console.error("❌ Erro ao aplicar configurações gerais do Firestore:", e);
-    }
-  }
-
-
+  
+  // Configurações opcionais do Firestore para melhor performance
+  db.settings({
+    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
+    merge: true
+  });
+  
   // Habilitar persistência offline (opcional)
   db.enablePersistence({ synchronizeTabs: true })
     .then(() => {
@@ -104,20 +57,40 @@ try {
         console.warn('⚠️ Múltiplas abas abertas, persistência offline desabilitada');
       } else if (err.code === 'unimplemented') {
         console.warn('⚠️ Navegador não suporta persistência offline');
-      } else {
-        console.error('❌ Erro ao habilitar persistência offline:', err);
       }
     });
-
+  
   console.log('✅ Serviços Firebase configurados:');
   console.log('   - Authentication: ✅');
   console.log('   - Firestore: ✅');
-
+  
 } catch (error) {
   console.error('❌ Erro ao configurar serviços Firebase:', error);
   throw error;
 }
 
+// Configurações de desenvolvimento vs produção
+const isDevelopment = location.hostname === 'localhost' || 
+                     location.hostname === '127.0.0.1' || 
+                     location.hostname.includes('localhost');
+
+if (isDevelopment) {
+  console.log('🔧 Modo de desenvolvimento ativo');
+  
+  // Configurações específicas para desenvolvimento
+  firebase.firestore().settings({
+    host: 'localhost:8080',
+    ssl: false
+  });
+  
+  // Habilitar logs detalhados em desenvolvimento
+  firebase.firestore.setLogLevel('debug');
+} else {
+  console.log('🚀 Modo de produção ativo');
+  
+  // Desabilitar logs em produção
+  firebase.firestore.setLogLevel('silent');
+}
 
 // Função utilitária para verificar conexão
 window.checkFirebaseConnection = async function() {
@@ -151,11 +124,17 @@ window.addEventListener('offline', () => {
   console.warn('📡 Conexão offline - dados serão sincronizados quando voltar online');
 });
 
+// Configuração de timeout para operações do Firestore
+const originalTimeout = firebase.firestore().settings;
+firebase.firestore().settings({
+  ...originalTimeout,
+  experimentalForceLongPolling: false, // Melhor para conexões instáveis
+});
 
 // Tratar erros de rede automaticamente
-// db.onSnapshotsInSync(() => { // Removido pois pode não ser necessário e adiciona complexidade
-//   console.log('📡 Dados sincronizados com o servidor');
-// });
+db.onSnapshotsInSync(() => {
+  console.log('📡 Dados sincronizados com o servidor');
+});
 
 // Expor instâncias globalmente para acesso em outros scripts
 window.firebase = firebase;
