@@ -111,7 +111,8 @@ const DataService = {
                     id: doc.id,
                     ...data,
                     price: Number(data.price) || 0,
-                    stock: Number(data.stock) || 0
+                    stock: Number(data.stock) || 0,
+                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
                 });
             });
             
@@ -144,7 +145,8 @@ const DataService = {
                     id: docSnap.id,
                     ...data,
                     price: Number(data.price) || 0,
-                    stock: Number(data.stock) || 0
+                    stock: Number(data.stock) || 0,
+                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
                 };
                 console.log("✅ Produto encontrado:", product);
                 return product;
@@ -181,6 +183,7 @@ const DataService = {
                 category: String(productData.category).trim(),
                 price: Number(productData.price) || 0,
                 stock: Number(productData.stock) || 0,
+                lowStockAlert: Number(productData.lowStockAlert) || 10, // Incluir campo de alerta
                 createdAt: timestamp,
                 updatedAt: timestamp
             };
@@ -225,6 +228,9 @@ const DataService = {
             }
             if (productData.stock !== undefined) {
                 dataToUpdate.stock = Number(productData.stock) || 0;
+            }
+            if (productData.lowStockAlert !== undefined) {
+                dataToUpdate.lowStockAlert = Number(productData.lowStockAlert) || 10;
             }
             
             await db.collection('products').doc(productId).update(dataToUpdate);
@@ -438,13 +444,14 @@ const DataService = {
                 const product = doc.data();
                 const price = Number(product.price) || 0;
                 const stock = Number(product.stock) || 0;
+                const lowStockThreshold = Number(product.lowStockAlert) || 10; // Usar valor personalizado
                 
                 // Contagem por categoria
                 const category = product.category || 'Sem categoria';
                 stats.categories[category] = (stats.categories[category] || 0) + 1;
                 
-                // Estoque baixo (menos de 20 unidades)
-                if (stock < 20 && stock > 0) {
+                // Estoque baixo (usando valor personalizado de cada produto)
+                if (stock <= lowStockThreshold && stock > 0) {
                     stats.lowStock++;
                 }
                 
@@ -808,6 +815,11 @@ const DataService = {
             errors.push("Estoque deve ser um número inteiro válido e não negativo");
         }
         
+        const lowStockAlert = Number(productData.lowStockAlert);
+        if (isNaN(lowStockAlert) || lowStockAlert < 1 || !Number.isInteger(lowStockAlert)) {
+            errors.push("Alerta de estoque baixo deve ser um número inteiro válido e maior que 0");
+        }
+        
         if (errors.length > 0) {
             throw new Error("Dados inválidos: " + errors.join(", "));
         }
@@ -816,7 +828,8 @@ const DataService = {
             name: productData.name.trim(),
             category: productData.category.trim(),
             price: price,
-            stock: stock
+            stock: stock,
+            lowStockAlert: lowStockAlert
         };
     }
 };
