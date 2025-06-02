@@ -7,6 +7,7 @@ let productModal, productForm, productModalTitle, productIdField, productNameFie
 
 // Controle de event listeners para evitar duplicatas
 let modalEventListenersAttached = false;
+let isModalProcessing = false; // Previne múltiplos cliques durante processamento
 
 // Dados de usuários de teste (será criado automaticamente no Firestore se não existir)
 const testUsers = {
@@ -83,20 +84,12 @@ function setupModalEventListeners() {
     
     // Fechar modal - botão X
     if (closeProductModalButton) {
-        closeProductModalButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            closeProductModal();
-        });
+        closeProductModalButton.addEventListener('click', handleModalClose);
     }
     
     // Fechar modal - botão Cancelar
     if (cancelProductFormButton) {
-        cancelProductFormButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            closeProductModal();
-        });
+        cancelProductFormButton.addEventListener('click', handleModalClose);
     }
     
     // Submit do formulário
@@ -107,18 +100,63 @@ function setupModalEventListeners() {
     // Fechar modal ao clicar no backdrop
     if (productModal) {
         productModal.addEventListener('click', (e) => {
-            if (e.target === productModal) {
-                closeProductModal();
+            if (e.target === productModal && !isModalProcessing) {
+                handleModalClose();
             }
         });
     }
     
     // Fechar modal com ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && productModal && !productModal.classList.contains('hidden')) {
-            closeProductModal();
+        if (e.key === 'Escape' && productModal && !productModal.classList.contains('hidden') && !isModalProcessing) {
+            handleModalClose();
         }
     });
+}
+
+// CORREÇÃO: Função unificada para fechar modal sem travamentos
+function handleModalClose() {
+    if (isModalProcessing) {
+        console.log("⚠️ Modal está processando, cancelamento bloqueado");
+        return;
+    }
+    
+    console.log("❌ Fechando modal de produto");
+    
+    try {
+        // Reset form state
+        if (productForm) {
+            productForm.reset();
+        }
+        
+        // Limpar campos específicos
+        if (productIdField) productIdField.value = '';
+        if (productNameField) productNameField.value = '';
+        if (productCategoryField) productCategoryField.value = '';
+        if (productPriceField) productPriceField.value = '';
+        if (productStockField) productStockField.value = '';
+        if (productLowStockAlertField) productLowStockAlertField.value = '';
+        
+        // Restaurar botão se necessário
+        if (saveProductButton) {
+            saveProductButton.disabled = false;
+            saveProductButton.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar Produto';
+        }
+        
+        // Fechar modal
+        if (productModal) {
+            productModal.classList.add('hidden');
+        }
+        
+        console.log("✅ Modal fechado com sucesso");
+        
+    } catch (error) {
+        console.error("❌ Erro ao fechar modal:", error);
+        // Forçar fechamento mesmo com erro
+        if (productModal) {
+            productModal.classList.add('hidden');
+        }
+    }
 }
 
 // Gerenciar mudanças no estado de autenticação
@@ -281,9 +319,14 @@ function openProductModal(product = null) {
         return;
     }
     
+    if (isModalProcessing) {
+        console.log("⚠️ Modal já está sendo processado");
+        return;
+    }
+    
     console.log("📝 Abrindo modal de produto:", product ? 'Editar' : 'Novo');
     
-    // Reset form
+    // Reset form completo
     if (productForm) productForm.reset();
     
     if (product) {
@@ -294,12 +337,14 @@ function openProductModal(product = null) {
         if (productCategoryField) productCategoryField.value = product.category;
         if (productPriceField) productPriceField.value = product.price;
         if (productStockField) productStockField.value = product.stock;
+        // CORREÇÃO: Usar o valor correto do alerta de estoque
         if (productLowStockAlertField) productLowStockAlertField.value = product.lowStockAlert || 10;
     } else {
         // Modo criação
         if (productModalTitle) productModalTitle.textContent = 'Adicionar Novo Produto';
         if (productIdField) productIdField.value = '';
-        if (productLowStockAlertField) productLowStockAlertField.value = 10; // Valor padrão
+        // CORREÇÃO: Definir valor padrão para alerta de estoque
+        if (productLowStockAlertField) productLowStockAlertField.value = 10;
     }
     
     // Mostrar modal
@@ -311,28 +356,31 @@ function openProductModal(product = null) {
     }
 }
 
-function closeProductModal() {
-    if (productModal) {
-        productModal.classList.add('hidden');
-        console.log("❌ Modal de produto fechado");
-    }
-}
-
 async function handleProductFormSubmit(event) {
     event.preventDefault();
+    
+    if (isModalProcessing) {
+        console.log("⚠️ Formulário já está sendo processado");
+        return;
+    }
+    
     console.log("💾 Salvando produto...");
     
     if (!validateProductForm()) {
         return;
     }
     
+    isModalProcessing = true; // Bloquear múltiplos submits
+    
     const id = productIdField?.value;
+    
+    // CORREÇÃO: Incluir corretamente o campo de alerta de estoque
     const productData = {
         name: productNameField.value.trim(),
         category: productCategoryField.value.trim(),
         price: parseFloat(productPriceField.value),
         stock: parseInt(productStockField.value),
-        lowStockAlert: parseInt(productLowStockAlertField?.value || 10)
+        lowStockAlert: parseInt(productLowStockAlertField?.value || 10) // IMPORTANTE: Incluir este campo
     };
     
     // Desabilitar botão durante salvamento
@@ -352,7 +400,7 @@ async function handleProductFormSubmit(event) {
             showTemporaryAlert('Produto adicionado com sucesso!', 'success');
         }
         
-        closeProductModal();
+        handleModalClose(); // Usar função unificada
         
         // Recarregar lista de produtos se estiver na seção correta
         await reloadProductsIfNeeded();
@@ -361,6 +409,8 @@ async function handleProductFormSubmit(event) {
         console.error("❌ Erro ao salvar produto:", error);
         showTemporaryAlert('Erro ao salvar produto. Tente novamente.', 'error');
     } finally {
+        isModalProcessing = false; // Liberar processamento
+        
         // Reabilitar botão
         if (saveProductButton) {
             saveProductButton.disabled = false;
@@ -370,7 +420,7 @@ async function handleProductFormSubmit(event) {
 }
 
 function validateProductForm() {
-    if (!productNameField || !productCategoryField || !productPriceField || !productStockField) {
+    if (!productNameField || !productCategoryField || !productPriceField || !productStockField || !productLowStockAlertField) {
         showTemporaryAlert("Erro: Campos do formulário não encontrados.", "error");
         return false;
     }
@@ -379,7 +429,7 @@ function validateProductForm() {
     const category = productCategoryField.value.trim();
     const price = parseFloat(productPriceField.value);
     const stock = parseInt(productStockField.value);
-    const lowStockAlert = parseInt(productLowStockAlertField?.value || 10);
+    const lowStockAlert = parseInt(productLowStockAlertField.value);
     
     if (!name) {
         showTemporaryAlert("Nome do produto é obrigatório.", "warning");
@@ -405,15 +455,17 @@ function validateProductForm() {
         return false;
     }
     
-    if (isNaN(lowStockAlert) || lowStockAlert < 0) {
-        showTemporaryAlert("Alerta de estoque baixo deve ser um número válido e não negativo.", "warning");
-        if (productLowStockAlertField) productLowStockAlertField.focus();
+    // CORREÇÃO: Validação completa do alerta de estoque
+    if (isNaN(lowStockAlert) || lowStockAlert < 1) {
+        showTemporaryAlert("Alerta de estoque baixo deve ser um número válido maior que 0.", "warning");
+        productLowStockAlertField.focus();
         return false;
     }
     
-    if (lowStockAlert > stock) {
-        showTemporaryAlert("O alerta de estoque baixo não pode ser maior que o estoque atual.", "warning");
-        if (productLowStockAlertField) productLowStockAlertField.focus();
+    // CORREÇÃO: Verificar se o alerta não é maior que o estoque atual
+    if (lowStockAlert > stock && stock > 0) {
+        showTemporaryAlert("O alerta de estoque baixo não deve ser maior que o estoque atual.", "warning");
+        productLowStockAlertField.focus();
         return false;
     }
     
@@ -834,7 +886,7 @@ function createProductsTable(products, userRole) {
             `;
         }
         
-        // Usar valor personalizado de alerta ou padrão (10)
+        // CORREÇÃO: Usar valor personalizado de alerta corretamente
         const lowStockThreshold = Number(product.lowStockAlert) || 10;
         const currentStock = Number(product.stock);
         const stockClass = currentStock <= lowStockThreshold ? 'text-red-400 font-semibold' : 'text-slate-300';
@@ -1908,6 +1960,126 @@ function renderDashboardMainCharts(salesStats, topProductsData) {
     renderProductsChart(topProductsData);
 }
 
+function renderVendorCharts(salesStats) {
+    if (!document.getElementById('vendorSalesChart') || typeof Chart === 'undefined') {
+        console.warn("⚠️ Elemento do gráfico do vendedor ou Chart.js não disponível");
+        return;
+    }
+    
+    console.log("📈 Renderizando gráficos do vendedor");
+    
+    renderVendorSalesChart(salesStats);
+    renderVendorProductsChart();
+}
+
+function renderVendorSalesChart(salesStats) {
+    const vendorCtx = document.getElementById('vendorSalesChart');
+    if (!vendorCtx) return;
+    
+    // Destruir gráfico anterior se existir
+    if (window.vendorSalesChartInstance) {
+        window.vendorSalesChartInstance.destroy();
+    }
+    
+    const ctx = vendorCtx.getContext('2d');
+    
+    window.vendorSalesChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Hoje', 'Esta Semana', 'Este Mês'],
+            datasets: [{
+                label: 'Minhas Vendas (R$)',
+                data: [
+                    salesStats?.todayRevenue || 0,
+                    salesStats?.weekRevenue || 0,
+                    salesStats?.monthRevenue || 0
+                ],
+                backgroundColor: [
+                    'rgba(56, 189, 248, 0.8)',
+                    'rgba(99, 102, 241, 0.8)',
+                    'rgba(16, 185, 129, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(56, 189, 248, 1)',
+                    'rgba(99, 102, 241, 1)',
+                    'rgba(16, 185, 129, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(241, 245, 249, 0.8)'
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(51, 65, 85, 0.3)'
+                    },
+                    ticks: {
+                        color: 'rgba(241, 245, 249, 0.8)',
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(51, 65, 85, 0.3)'
+                    },
+                    ticks: {
+                        color: 'rgba(241, 245, 249, 0.8)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderVendorProductsChart() {
+    // Esta função seria implementada para mostrar produtos mais vendidos pelo vendedor
+    const vendorProductsCtx = document.getElementById('vendorProductsChart');
+    if (!vendorProductsCtx) return;
+    
+    // Para simplicidade, mostrar um placeholder
+    const ctx = vendorProductsCtx.getContext('2d');
+    
+    if (window.vendorProductsChartInstance) {
+        window.vendorProductsChartInstance.destroy();
+    }
+    
+    window.vendorProductsChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Sem dados'],
+            datasets: [{
+                data: [1],
+                backgroundColor: ['rgba(107, 114, 128, 0.5)'],
+                borderColor: ['rgba(107, 114, 128, 1)'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'rgba(241, 245, 249, 0.8)'
+                    }
+                }
+            }
+        }
+    });
+}
+
 function renderSalesChart(salesStats) {
     const salesCtx = document.getElementById('salesChart');
     if (!salesCtx) return;
@@ -2871,6 +3043,6 @@ function truncateText(text, maxLength) {
 // === EXPOR FUNÇÕES GLOBALMENTE (para compatibilidade) ===
 window.handleEditProduct = handleEditProduct;
 window.handleDeleteProductConfirmation = handleDeleteProductConfirmation;
+window.openProductModal = openProductModal;
 
 console.log("✅ EliteControl main.js carregado com sucesso!");
-
