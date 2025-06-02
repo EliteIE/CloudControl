@@ -1,5 +1,5 @@
 // js/firebase-service.js
-// Serviço otimizado para interagir com o Firebase Firestore
+// Serviço otimizado para interagir com o Firebase Firestore - V2.0 com suporte a CRM
 
 const DataService = {
     // === FUNÇÕES DE USUÁRIO ===
@@ -343,13 +343,14 @@ const DataService = {
     },
 
     /**
-     * Adiciona nova venda
+     * Adiciona nova venda com suporte a cliente
      * @param {Object} saleData - Dados básicos da venda
      * @param {Array} productsSoldDetails - Detalhes dos produtos vendidos
      * @param {string} sellerName - Nome do vendedor
+     * @param {Object} customerData - Dados do cliente (opcional)
      * @returns {Object} Venda criada
      */
-    addSale: async function(saleData, productsSoldDetails, sellerName) {
+    addSale: async function(saleData, productsSoldDetails, sellerName, customerData = null) {
         if (!db) throw new Error("Firestore não inicializado em addSale");
         if (!saleData || !productsSoldDetails || !Array.isArray(productsSoldDetails)) {
             throw new Error("Dados da venda são obrigatórios");
@@ -390,6 +391,13 @@ const DataService = {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
+            // Adicionar dados do cliente se fornecidos
+            if (customerData && customerData.id) {
+                salePayload.customerId = customerData.id;
+                salePayload.customerName = customerData.name;
+                salePayload.customerPhone = customerData.phone;
+            }
+            
             batch.set(saleDocRef, salePayload);
             
             // Atualizar estoque dos produtos
@@ -404,6 +412,11 @@ const DataService = {
             // Executar transação
             await batch.commit();
             console.log("✅ Venda adicionada e estoque atualizado:", saleDocRef.id);
+            
+            // Atualizar estatísticas do cliente se aplicável
+            if (customerData && customerData.id && window.CRMService) {
+                await window.CRMService.updateCustomerStats(customerData.id, salePayload);
+            }
             
             return { id: saleDocRef.id, ...salePayload };
             
@@ -838,4 +851,5 @@ const DataService = {
 window.DataService = DataService;
 
 // Log de inicialização
-console.log("✅ Firebase DataService inicializado e pronto para uso");
+console.log("✅ Firebase DataService v2.0 inicializado e pronto para uso");
+console.log("🚀 Nova funcionalidade: Suporte a clientes nas vendas");
