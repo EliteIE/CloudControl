@@ -9,253 +9,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <style>
-        /* Estilos específicos do modal */
-        .modal-backdrop.hidden {
-            display: none !important;
-        }
-        
-        .modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(15, 23, 42, 0.75);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            padding: 1rem;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-        
-        .modal-backdrop.show {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        .modal-content {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-            border-radius: 1rem;
-            border: 1px solid rgba(51, 65, 85, 0.5);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-            width: 100%;
-            max-width: 500px;
-            transform: scale(0.95);
-            opacity: 0;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            overflow: hidden;
-            backdrop-filter: blur(10px);
-        }
-        
-        .modal-content.show {
-            transform: scale(1);
-            opacity: 1;
-        }
-        
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1.5rem;
-            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-        }
-        
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #F1F5F9;
-        }
-        
-        .modal-close {
-            background: none;
-            border: none;
-            color: #94A3B8;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 0.25rem;
-            border-radius: 0.25rem;
-            transition: all 0.2s ease;
-        }
-        
-        .modal-close:hover {
-            color: #F1F5F9;
-            background: rgba(51, 65, 85, 0.5);
-        }
-        
-        .modal-body {
-            padding: 1.5rem;
-        }
-        
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.75rem;
-            padding: 1.5rem;
-            border-top: 1px solid rgba(51, 65, 85, 0.5);
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #F1F5F9;
-        }
-        
-        .form-input {
-            width: 100%;
-            background-color: rgba(51, 65, 85, 0.8);
-            border: 1px solid rgba(71, 85, 105, 0.5);
-            border-radius: 0.5rem;
-            padding: 0.75rem 1rem;
-            color: #F1F5F9;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-        
-        .form-input:focus {
-            outline: none;
-            border-color: #38BDF8;
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
-        }
-        
-        .form-input::placeholder {
-            color: #94A3B8;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
-            color: white;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
-        }
-        
-        .btn-primary:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .btn-secondary {
-            background: rgba(51, 65, 85, 0.8);
-            color: #F1F5F9;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem;
-            border: 1px solid rgba(71, 85, 105, 0.5);
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(71, 85, 105, 0.8);
-        }
-        
-        /* Estilos para notificações temporárias */
-        .temporary-alerts-container {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            z-index: 200;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            max-width: 24rem;
-            pointer-events: none;
-        }
-        
-        .temporary-alert {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            transform: translateX(100%);
-            opacity: 0;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            backdrop-filter: blur(10px);
-            pointer-events: auto;
-        }
-        
-        .temporary-alert.show {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        
-        .temporary-alert-info {
-            background: rgba(56, 189, 248, 0.9);
-            border-left: 4px solid #38BDF8;
-            color: white;
-        }
-        
-        .temporary-alert-success {
-            background: rgba(16, 185, 129, 0.9);
-            border-left: 4px solid #10B981;
-            color: white;
-        }
-        
-        .temporary-alert-warning {
-            background: rgba(245, 158, 11, 0.9);
-            border-left: 4px solid #F59E0B;
-            color: white;
-        }
-        
-        .temporary-alert-error {
-            background: rgba(239, 68, 68, 0.9);
-            border-left: 4px solid #EF4444;
-            color: white;
-        }
-        
-        .temporary-alert-content {
-            display: flex;
-            align-items: center;
-            flex: 1;
-        }
-        
-        .temporary-alert-icon {
-            margin-right: 0.75rem;
-            font-size: 1.25rem;
-        }
-        
-        .temporary-alert-message {
-            font-weight: 500;
-        }
-        
-        .temporary-alert-close {
-            background: none;
-            border: none;
-            color: rgba(255, 255, 255, 0.8);
-            cursor: pointer;
-            font-size: 1.25rem;
-            padding: 0.25rem;
-            margin-left: 0.75rem;
-            transition: color 0.2s ease;
-        }
-        
-        .temporary-alert-close:hover {
-            color: white;
-        }
-    </style>
 </head>
 <body class="bg-slate-900 text-slate-300 min-h-screen">
     <!-- Header -->
@@ -419,6 +172,21 @@
                            min="0" 
                            required>
                 </div>
+                
+                <div class="form-group">
+                    <label for="productLowStockAlert" class="form-label">Alerta de Estoque Baixo *</label>
+                    <input type="number" 
+                           id="productLowStockAlert" 
+                           name="productLowStockAlert" 
+                           class="form-input" 
+                           placeholder="10"
+                           step="1" 
+                           min="1" 
+                           required>
+                    <small class="text-slate-400 text-xs mt-1 block">
+                        Você será alertado quando o estoque ficar abaixo deste valor
+                    </small>
+                </div>
             </form>
             
             <div class="modal-footer">
@@ -449,55 +217,92 @@
     <script src="js/firebase-service.js"></script> 
     <script src="js/main.js"></script>
 
-    <script>
-        // Script inline para inicialização específica do dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('📊 Dashboard HTML carregado');
-            
-            // Configurar modal para mostrar/esconder corretamente
-            const productModal = document.getElementById('productModal');
-            if (productModal) {
-                // Observer para detectar mudanças na classe hidden
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        if (mutation.attributeName === 'class') {
-                            const modal = mutation.target;
-                            const modalContent = modal.querySelector('.modal-content');
-                            
-                            if (modal.classList.contains('hidden')) {
-                                modal.classList.remove('show');
-                                if (modalContent) modalContent.classList.remove('show');
-                            } else {
-                                setTimeout(() => {
-                                    modal.classList.add('show');
-                                    if (modalContent) modalContent.classList.add('show');
-                                }, 10);
-                            }
-                        }
-                    });
-                });
-                
-                observer.observe(productModal, { attributes: true, attributeFilter: ['class'] });
-            }
-            
-            // Fechar modal ao clicar fora
-            document.addEventListener('click', function(e) {
-                const modal = document.getElementById('productModal');
-                if (modal && e.target === modal) {
-                    modal.classList.add('hidden');
-                }
-            });
-            
-            // Fechar modal com ESC
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    const modal = document.getElementById('productModal');
-                    if (modal && !modal.classList.contains('hidden')) {
-                        modal.classList.add('hidden');
-                    }
-                }
-            });
-        });
-    </script>
+    <style>
+        /* Estilos específicos para alertas temporários */
+        .temporary-alerts-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-width: 24rem;
+            pointer-events: none;
+        }
+        
+        .temporary-alert {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+        }
+        
+        .temporary-alert.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
+        .temporary-alert-info {
+            background: rgba(56, 189, 248, 0.9);
+            border-left: 4px solid #38BDF8;
+            color: white;
+        }
+        
+        .temporary-alert-success {
+            background: rgba(16, 185, 129, 0.9);
+            border-left: 4px solid #10B981;
+            color: white;
+        }
+        
+        .temporary-alert-warning {
+            background: rgba(245, 158, 11, 0.9);
+            border-left: 4px solid #F59E0B;
+            color: white;
+        }
+        
+        .temporary-alert-error {
+            background: rgba(239, 68, 68, 0.9);
+            border-left: 4px solid #EF4444;
+            color: white;
+        }
+        
+        .temporary-alert-content {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        
+        .temporary-alert-icon {
+            margin-right: 0.75rem;
+            font-size: 1.25rem;
+        }
+        
+        .temporary-alert-message {
+            font-weight: 500;
+        }
+        
+        .temporary-alert-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0.25rem;
+            margin-left: 0.75rem;
+            transition: color 0.2s ease;
+        }
+        
+        .temporary-alert-close:hover {
+            color: white;
+        }
+    </style>
 </body>
 </html>
