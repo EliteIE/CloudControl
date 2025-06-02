@@ -41,65 +41,56 @@ try {
   auth = firebase.auth();
   db = firebase.firestore();
   
-  // Configurações opcionais do Firestore para melhor performance
-  db.settings({
-    cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED,
-    merge: true
-  });
-  
-  // Habilitar persistência offline (opcional)
-  db.enablePersistence({ synchronizeTabs: true })
-    .then(() => {
-      console.log('✅ Persistência offline habilitada');
-    })
-    .catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('⚠️ Múltiplas abas abertas, persistência offline desabilitada');
-      } else if (err.code === 'unimplemented') {
-        console.warn('⚠️ Navegador não suporta persistência offline');
-      }
-    });
-  
   console.log('✅ Serviços Firebase configurados:');
   console.log('   - Authentication: ✅');
   console.log('   - Firestore: ✅');
+  
+  // Habilitar persistência offline (opcional) - COMENTADO para evitar problemas
+  // db.enablePersistence({ synchronizeTabs: true })
+  //   .then(() => {
+  //     console.log('✅ Persistência offline habilitada');
+  //   })
+  //   .catch((err) => {
+  //     if (err.code === 'failed-precondition') {
+  //       console.warn('⚠️ Múltiplas abas abertas, persistência offline desabilitada');
+  //     } else if (err.code === 'unimplemented') {
+  //       console.warn('⚠️ Navegador não suporta persistência offline');
+  //     }
+  //   });
   
 } catch (error) {
   console.error('❌ Erro ao configurar serviços Firebase:', error);
   throw error;
 }
 
-// Configurações de desenvolvimento vs produção
+// Configurações de desenvolvimento vs produção - REMOVIDO O MODO LOCAL
 const isDevelopment = location.hostname === 'localhost' || 
                      location.hostname === '127.0.0.1' || 
                      location.hostname.includes('localhost');
 
 if (isDevelopment) {
   console.log('🔧 Modo de desenvolvimento ativo');
-  
-  // Configurações específicas para desenvolvimento
-  firebase.firestore().settings({
-    host: 'localhost:8080',
-    ssl: false
-  });
-  
-  // Habilitar logs detalhados em desenvolvimento
-  firebase.firestore.setLogLevel('debug');
+  // NÃO conectar ao emulador local por padrão
+  // Se quiser usar o emulador, descomente as linhas abaixo:
+  // auth.useEmulator('http://localhost:9099');
+  // db.useEmulator('localhost', 8080);
 } else {
   console.log('🚀 Modo de produção ativo');
-  
-  // Desabilitar logs em produção
-  firebase.firestore.setLogLevel('silent');
 }
 
 // Função utilitária para verificar conexão
 window.checkFirebaseConnection = async function() {
   try {
     // Tentar uma operação simples para verificar conectividade
-    await db.collection('_test').limit(1).get();
+    const testDoc = await db.collection('_test').doc('connection').get();
     console.log('✅ Conexão com Firestore verificada');
     return true;
   } catch (error) {
+    // Ignorar erro se for apenas documento não encontrado
+    if (error.code === 'permission-denied') {
+      console.log('✅ Firestore conectado (permissão negada é esperada para _test)');
+      return true;
+    }
     console.error('❌ Erro de conexão com Firestore:', error);
     return false;
   }
@@ -124,17 +115,12 @@ window.addEventListener('offline', () => {
   console.warn('📡 Conexão offline - dados serão sincronizados quando voltar online');
 });
 
-// Configuração de timeout para operações do Firestore
-const originalTimeout = firebase.firestore().settings;
-firebase.firestore().settings({
-  ...originalTimeout,
-  experimentalForceLongPolling: false, // Melhor para conexões instáveis
-});
-
 // Tratar erros de rede automaticamente
-db.onSnapshotsInSync(() => {
-  console.log('📡 Dados sincronizados com o servidor');
-});
+if (db.onSnapshotsInSync) {
+  db.onSnapshotsInSync(() => {
+    console.log('📡 Dados sincronizados com o servidor');
+  });
+}
 
 // Expor instâncias globalmente para acesso em outros scripts
 window.firebase = firebase;
@@ -145,3 +131,12 @@ window.db = db;
 console.log('🎉 Firebase EliteControl configurado e pronto para uso!');
 console.log('📊 Projeto:', firebaseConfig.projectId);
 console.log('🔐 Domínio:', firebaseConfig.authDomain);
+
+// Teste rápido de autenticação
+auth.onAuthStateChanged((user) => {
+  if (user) {
+    console.log('👤 Usuário autenticado:', user.email);
+  } else {
+    console.log('👤 Nenhum usuário autenticado');
+  }
+});
