@@ -2874,39 +2874,3 @@ window.handleDeleteProductConfirmation = handleDeleteProductConfirmation;
 
 console.log("✅ EliteControl main.js carregado com sucesso!");
 
-/*
-=== MELHORIAS IMPLEMENTADAS v2.0 ===
-
-✅ CAMPO DE ALERTA DE ESTOQUE BAIXO PERSONALIZADO:
-- Adicionado campo "lowStockAlert" no formulário de produtos
-- Cada produto pode ter seu próprio limite de alerta de estoque baixo
-- Valor padrão: 10 unidades (configurável por produto)
-- Validação: não pode ser maior que o estoque atual
-- Interface atualizada para mostrar coluna "Alerta" na tabela de produtos
-
-✅ CORREÇÕES DE TRAVAMENTO E PERFORMANCE:
-- Eliminado event listeners duplicados que causavam travamento
-- Melhorada gestão de event listeners do modal
-- Controle de evento único via variável 'modalEventListenersAttached'
-- Event listeners do modal configurados apenas uma vez
-- Melhor gestão de memória e prevenção de vazamentos
-
-✅ MELHORIAS NA INTERFACE:
-- Nova coluna "Alerta" na tabela de produtos
-- Indicadores visuais de estoque baixo baseados no valor personalizado
-- Tooltip explicativo no campo de alerta
-- Validação em tempo real do alerta vs estoque atual
-- Interface mais robusta e responsiva
-
-✅ MELHORIAS NO BACKEND (Firebase):
-- Campo lowStockAlert incluído em todas operações CRUD
-- Estatísticas de estoque baixo baseadas em valores personalizados
-- Validação de dados aprimorada
-- Compatibilidade com produtos existentes (valor padrão: 10)
-
-✅ EXPERIÊNCIA DO USUÁRIO:
-- Formulário mais intuitivo com explicações
-- Prevenção de erros de validação
-- Feedback visual aprimorado
-- Sistema mais estável e confiável
-*/
