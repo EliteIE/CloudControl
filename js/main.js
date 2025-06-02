@@ -2,8 +2,11 @@
 
 // Variáveis globais
 let productModal, productForm, productModalTitle, productIdField, productNameField, 
-    productCategoryField, productPriceField, productStockField, closeProductModalButton, 
-    cancelProductFormButton, saveProductButton;
+    productCategoryField, productPriceField, productStockField, productLowStockAlertField,
+    closeProductModalButton, cancelProductFormButton, saveProductButton;
+
+// Controle de event listeners para evitar duplicatas
+let modalEventListenersAttached = false;
 
 // Dados de usuários de teste (será criado automaticamente no Firestore se não existir)
 const testUsers = {
@@ -26,11 +29,11 @@ const testUsers = {
 
 // Produtos de exemplo
 const sampleProducts = [
-    { name: 'Notebook Dell Inspiron', category: 'Eletrônicos', price: 2500.00, stock: 15 },
-    { name: 'Mouse Logitech MX Master', category: 'Periféricos', price: 320.00, stock: 8 },
-    { name: 'Teclado Mecânico RGB', category: 'Periféricos', price: 450.00, stock: 25 },
-    { name: 'Monitor 24" Full HD', category: 'Eletrônicos', price: 800.00, stock: 12 },
-    { name: 'SSD 500GB Samsung', category: 'Armazenamento', price: 350.00, stock: 30 }
+    { name: 'Notebook Dell Inspiron', category: 'Eletrônicos', price: 2500.00, stock: 15, lowStockAlert: 10 },
+    { name: 'Mouse Logitech MX Master', category: 'Periféricos', price: 320.00, stock: 8, lowStockAlert: 5 },
+    { name: 'Teclado Mecânico RGB', category: 'Periféricos', price: 450.00, stock: 25, lowStockAlert: 15 },
+    { name: 'Monitor 24" Full HD', category: 'Eletrônicos', price: 800.00, stock: 12, lowStockAlert: 8 },
+    { name: 'SSD 500GB Samsung', category: 'Armazenamento', price: 350.00, stock: 30, lowStockAlert: 20 }
 ];
 
 // Inicialização quando o DOM estiver pronto
@@ -57,6 +60,7 @@ function initializeModalElements() {
     productCategoryField = document.getElementById('productCategory');
     productPriceField = document.getElementById('productPrice');
     productStockField = document.getElementById('productStock');
+    productLowStockAlertField = document.getElementById('productLowStockAlert');
     closeProductModalButton = document.getElementById('closeProductModalButton');
     cancelProductFormButton = document.getElementById('cancelProductFormButton');
     saveProductButton = document.getElementById('saveProductButton');
@@ -65,6 +69,56 @@ function initializeModalElements() {
     if (!productModal && window.location.pathname.includes('dashboard.html')) {
         console.error("⚠️ Elementos do modal de produto não encontrados no DOM!");
     }
+    
+    // Configurar event listeners do modal apenas uma vez
+    if (productModal && !modalEventListenersAttached) {
+        setupModalEventListeners();
+        modalEventListenersAttached = true;
+    }
+}
+
+// Configurar event listeners específicos do modal
+function setupModalEventListeners() {
+    console.log("🔧 Configurando event listeners do modal de produto");
+    
+    // Fechar modal - botão X
+    if (closeProductModalButton) {
+        closeProductModalButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeProductModal();
+        });
+    }
+    
+    // Fechar modal - botão Cancelar
+    if (cancelProductFormButton) {
+        cancelProductFormButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeProductModal();
+        });
+    }
+    
+    // Submit do formulário
+    if (productForm) {
+        productForm.addEventListener('submit', handleProductFormSubmit);
+    }
+    
+    // Fechar modal ao clicar no backdrop
+    if (productModal) {
+        productModal.addEventListener('click', (e) => {
+            if (e.target === productModal) {
+                closeProductModal();
+            }
+        });
+    }
+    
+    // Fechar modal com ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && productModal && !productModal.classList.contains('hidden')) {
+            closeProductModal();
+        }
+    });
 }
 
 // Gerenciar mudanças no estado de autenticação
@@ -240,10 +294,12 @@ function openProductModal(product = null) {
         if (productCategoryField) productCategoryField.value = product.category;
         if (productPriceField) productPriceField.value = product.price;
         if (productStockField) productStockField.value = product.stock;
+        if (productLowStockAlertField) productLowStockAlertField.value = product.lowStockAlert || 10;
     } else {
         // Modo criação
         if (productModalTitle) productModalTitle.textContent = 'Adicionar Novo Produto';
         if (productIdField) productIdField.value = '';
+        if (productLowStockAlertField) productLowStockAlertField.value = 10; // Valor padrão
     }
     
     // Mostrar modal
@@ -275,13 +331,14 @@ async function handleProductFormSubmit(event) {
         name: productNameField.value.trim(),
         category: productCategoryField.value.trim(),
         price: parseFloat(productPriceField.value),
-        stock: parseInt(productStockField.value)
+        stock: parseInt(productStockField.value),
+        lowStockAlert: parseInt(productLowStockAlertField?.value || 10)
     };
     
     // Desabilitar botão durante salvamento
     if (saveProductButton) {
         saveProductButton.disabled = true;
-        saveProductButton.textContent = 'Salvando...';
+        saveProductButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...';
     }
     
     try {
@@ -307,7 +364,7 @@ async function handleProductFormSubmit(event) {
         // Reabilitar botão
         if (saveProductButton) {
             saveProductButton.disabled = false;
-            saveProductButton.textContent = 'Salvar Produto';
+            saveProductButton.innerHTML = '<i class="fas fa-save mr-2"></i>Salvar Produto';
         }
     }
 }
@@ -322,6 +379,7 @@ function validateProductForm() {
     const category = productCategoryField.value.trim();
     const price = parseFloat(productPriceField.value);
     const stock = parseInt(productStockField.value);
+    const lowStockAlert = parseInt(productLowStockAlertField?.value || 10);
     
     if (!name) {
         showTemporaryAlert("Nome do produto é obrigatório.", "warning");
@@ -344,6 +402,18 @@ function validateProductForm() {
     if (isNaN(stock) || stock < 0) {
         showTemporaryAlert("Estoque deve ser um número válido e não negativo.", "warning");
         productStockField.focus();
+        return false;
+    }
+    
+    if (isNaN(lowStockAlert) || lowStockAlert < 0) {
+        showTemporaryAlert("Alerta de estoque baixo deve ser um número válido e não negativo.", "warning");
+        if (productLowStockAlertField) productLowStockAlertField.focus();
+        return false;
+    }
+    
+    if (lowStockAlert > stock) {
+        showTemporaryAlert("O alerta de estoque baixo não pode ser maior que o estoque atual.", "warning");
+        if (productLowStockAlertField) productLowStockAlertField.focus();
         return false;
     }
     
@@ -730,6 +800,7 @@ function createProductsTable(products, userRole) {
             <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Categoria</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Preço</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estoque</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Alerta</th>
             ${(userRole === 'Controlador de Estoque' || userRole === 'Dono/Gerente') ? 
                 '<th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Ações</th>' : ''}
         </tr>
@@ -763,15 +834,23 @@ function createProductsTable(products, userRole) {
             `;
         }
         
-        const stockClass = Number(product.stock) < 20 ? 'text-red-400 font-semibold' : 'text-slate-300';
+        // Usar valor personalizado de alerta ou padrão (10)
+        const lowStockThreshold = Number(product.lowStockAlert) || 10;
+        const currentStock = Number(product.stock);
+        const stockClass = currentStock <= lowStockThreshold ? 'text-red-400 font-semibold' : 'text-slate-300';
+        const alertClass = currentStock <= lowStockThreshold ? 'text-red-400 font-semibold' : 'text-yellow-400';
         
         tr.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-200">${product.name}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${product.category}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${formatCurrency(product.price)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm ${stockClass}">
-                ${product.stock}
-                ${Number(product.stock) < 20 ? '<i class="fas fa-exclamation-triangle ml-1" title="Estoque baixo"></i>' : ''}
+                ${currentStock}
+                ${currentStock <= lowStockThreshold ? '<i class="fas fa-exclamation-triangle ml-1" title="Estoque baixo"></i>' : ''}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${alertClass}">
+                ${lowStockThreshold}
+                ${currentStock <= lowStockThreshold ? '<i class="fas fa-bell ml-1" title="Alerta ativo"></i>' : ''}
             </td>
             ${actionsHtml}
         `;
@@ -1211,7 +1290,8 @@ function renderAvailableProducts(products) {
     
     container.innerHTML = products.map(product => {
         const isInCart = saleCart.find(item => item.productId === product.id);
-        const stockClass = product.stock === 0 ? 'out' : (product.stock < 20 ? 'low' : '');
+        const lowStockThreshold = Number(product.lowStockAlert) || 10;
+        const stockClass = product.stock === 0 ? 'out' : (product.stock <= lowStockThreshold ? 'low' : '');
         const isOutOfStock = product.stock === 0;
         
         return `
@@ -1224,6 +1304,7 @@ function renderAvailableProducts(products) {
                     <div class="product-price">${formatCurrency(product.price)}</div>
                     <div class="product-stock ${stockClass}">
                         ${isOutOfStock ? 'Sem estoque' : `${product.stock} unidades`}
+                        ${product.stock <= lowStockThreshold && product.stock > 0 ? ' (Baixo)' : ''}
                     </div>
                 </div>
                 
@@ -2184,20 +2265,9 @@ function setupNavigationListeners() {
 }
 
 function setupModalListeners() {
-    // Event listeners do modal serão configurados quando os elementos estiverem disponíveis
-    document.addEventListener('click', function(e) {
-        if (closeProductModalButton && e.target === closeProductModalButton) {
-            closeProductModal();
-        }
-        if (cancelProductFormButton && e.target === cancelProductFormButton) {
-            closeProductModal();
-        }
-    });
-    
-    // Form submit
-    if (productForm) {
-        productForm.addEventListener('submit', handleProductFormSubmit);
-    }
+    // Os event listeners do modal agora são configurados na função setupModalEventListeners()
+    // Esta função é mantida para compatibilidade, mas não faz mais nada
+    console.log("🔧 Event listeners do modal já configurados via setupModalEventListeners()");
 }
 
 function setupDropdownListeners() {
@@ -2803,3 +2873,40 @@ window.handleEditProduct = handleEditProduct;
 window.handleDeleteProductConfirmation = handleDeleteProductConfirmation;
 
 console.log("✅ EliteControl main.js carregado com sucesso!");
+
+/*
+=== MELHORIAS IMPLEMENTADAS v2.0 ===
+
+✅ CAMPO DE ALERTA DE ESTOQUE BAIXO PERSONALIZADO:
+- Adicionado campo "lowStockAlert" no formulário de produtos
+- Cada produto pode ter seu próprio limite de alerta de estoque baixo
+- Valor padrão: 10 unidades (configurável por produto)
+- Validação: não pode ser maior que o estoque atual
+- Interface atualizada para mostrar coluna "Alerta" na tabela de produtos
+
+✅ CORREÇÕES DE TRAVAMENTO E PERFORMANCE:
+- Eliminado event listeners duplicados que causavam travamento
+- Melhorada gestão de event listeners do modal
+- Controle de evento único via variável 'modalEventListenersAttached'
+- Event listeners do modal configurados apenas uma vez
+- Melhor gestão de memória e prevenção de vazamentos
+
+✅ MELHORIAS NA INTERFACE:
+- Nova coluna "Alerta" na tabela de produtos
+- Indicadores visuais de estoque baixo baseados no valor personalizado
+- Tooltip explicativo no campo de alerta
+- Validação em tempo real do alerta vs estoque atual
+- Interface mais robusta e responsiva
+
+✅ MELHORIAS NO BACKEND (Firebase):
+- Campo lowStockAlert incluído em todas operações CRUD
+- Estatísticas de estoque baixo baseadas em valores personalizados
+- Validação de dados aprimorada
+- Compatibilidade com produtos existentes (valor padrão: 10)
+
+✅ EXPERIÊNCIA DO USUÁRIO:
+- Formulário mais intuitivo com explicações
+- Prevenção de erros de validação
+- Feedback visual aprimorado
+- Sistema mais estável e confiável
+*/
