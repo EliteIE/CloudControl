@@ -215,7 +215,6 @@
     <!-- App Scripts -->
     <script src="js/firebase-config.js"></script>
     <script src="js/firebase-service.js"></script>
-    <!-- NOVA LINHA ADICIONADA: Serviço CRM -->
     <script src="js/firebase-crm-service.js"></script>
     <script src="js/main.js"></script>
 
@@ -304,6 +303,38 @@
         
         .temporary-alert-close:hover {
             color: white;
+        }
+
+        /* Estilos para garantir responsive design */
+        @media (max-width: 768px) {
+            .temporary-alerts-container {
+                right: 0.5rem;
+                left: 0.5rem;
+                max-width: none;
+            }
+        }
+
+        /* Estilos adicionais para melhor funcionalidade */
+        .hidden {
+            display: none !important;
+        }
+
+        .show {
+            display: block !important;
+        }
+
+        /* Loading animation */
+        .fa-spin {
+            animation: fa-spin 2s infinite linear;
+        }
+
+        @keyframes fa-spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </body>
