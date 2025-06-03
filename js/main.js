@@ -299,8 +299,8 @@ function renderProductsList(products, container, userRole) {
 
     container.innerHTML = `
         <div class="products-container">
-            <div class="products-header">
-                <h2 class="text-xl font-semibold text-slate-100 mb-4">Gestão de Produtos</h2>
+            <div class="products-header mb-4 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-slate-100">Gestão de Produtos</h2>
                 ${canEditProducts ? `
                     <button id="openAddProductModalButton" class="btn-primary">
                         <i class="fas fa-plus mr-2"></i>
@@ -327,6 +327,14 @@ function renderProductsList(products, container, userRole) {
 
     // Configurar pesquisa
     setupProductSearch(products, canEditProducts);
+    
+    // Configurar event listeners específicos para esta seção
+    setTimeout(() => {
+        const addButton = document.getElementById('openAddProductModalButton');
+        if (addButton) {
+            console.log("✅ Botão adicionar produto encontrado e pronto");
+        }
+    }, 100);
 }
 
 function renderProductsTable(products, canEdit) {
@@ -2298,30 +2306,60 @@ function setupDropdownListeners() {
 }
 
 function setupProductActionListeners() {
+    // Usar delegação de eventos para capturar cliques em botões criados dinamicamente
     document.addEventListener('click', function(e) {
+        // Botão de adicionar produto
+        if (e.target.closest('#openAddProductModalButton')) {
+            e.preventDefault();
+            console.log("🔘 Botão adicionar produto clicado");
+            
+            // Garantir que os elementos do modal estão inicializados
+            if (!productModal) {
+                initializeModalElements();
+            }
+            
+            // Configurar event listeners do modal se necessário
+            if (!modalEventListenersAttached && productModal) {
+                setupModalEventListeners();
+            }
+            
+            openProductModal();
+            return;
+        }
+
+        // Botão de editar produto
         const editButton = e.target.closest('.edit-product-btn');
         if (editButton) {
             e.preventDefault();
+            console.log("✏️ Botão editar produto clicado");
             const productId = editButton.dataset.productId;
             if (productId) {
+                // Garantir que os elementos do modal estão inicializados
+                if (!productModal) {
+                    initializeModalElements();
+                }
+                
+                // Configurar event listeners do modal se necessário
+                if (!modalEventListenersAttached && productModal) {
+                    setupModalEventListeners();
+                }
+                
                 handleEditProduct(productId);
             }
+            return;
         }
 
+        // Botão de excluir produto
         const deleteButton = e.target.closest('.delete-product-btn');
         if (deleteButton) {
             e.preventDefault();
+            console.log("🗑️ Botão excluir produto clicado");
             const productId = deleteButton.dataset.productId;
             const productName = deleteButton.dataset.productName;
             if (productId && productName) {
                 handleDeleteProductConfirmation(productId, productName);
             }
-        }
-
-        const openModalButton = e.target.closest('#openAddProductModalButton');
-        if (openModalButton) {
-            e.preventDefault();
-            openProductModal();
+            return;
         }
     });
 }
