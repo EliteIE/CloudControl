@@ -1,5 +1,5 @@
 // js/firebase-service.js
-// Serviço otimizado para interagir com o Firebase Firestore - V2.0 com suporte a CRM
+// Serviço otimizado para interagir com o Firebase Firestore - V2.1 CORRIGIDO
 
 const DataService = {
     // === FUNÇÕES DE USUÁRIO ===
@@ -112,7 +112,7 @@ const DataService = {
                     ...data,
                     price: Number(data.price) || 0,
                     stock: Number(data.stock) || 0,
-                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
+                    lowStockAlert: Number(data.lowStockAlert) || 10
                 });
             });
             
@@ -146,7 +146,7 @@ const DataService = {
                     ...data,
                     price: Number(data.price) || 0,
                     stock: Number(data.stock) || 0,
-                    lowStockAlert: Number(data.lowStockAlert) || 10 // Valor padrão: 10
+                    lowStockAlert: Number(data.lowStockAlert) || 10
                 };
                 console.log("✅ Produto encontrado:", product);
                 return product;
@@ -183,7 +183,7 @@ const DataService = {
                 category: String(productData.category).trim(),
                 price: Number(productData.price) || 0,
                 stock: Number(productData.stock) || 0,
-                lowStockAlert: Number(productData.lowStockAlert) || 10, // Incluir campo de alerta
+                lowStockAlert: Number(productData.lowStockAlert) || 10,
                 createdAt: timestamp,
                 updatedAt: timestamp
             };
@@ -415,7 +415,11 @@ const DataService = {
             
             // Atualizar estatísticas do cliente se aplicável
             if (customerData && customerData.id && window.CRMService) {
-                await window.CRMService.updateCustomerStats(customerData.id, salePayload);
+                try {
+                    await window.CRMService.updateCustomerStats(customerData.id, salePayload);
+                } catch (crmError) {
+                    console.warn("⚠️ Erro ao atualizar estatísticas do cliente:", crmError);
+                }
             }
             
             return { id: saleDocRef.id, ...salePayload };
@@ -457,13 +461,13 @@ const DataService = {
                 const product = doc.data();
                 const price = Number(product.price) || 0;
                 const stock = Number(product.stock) || 0;
-                const lowStockThreshold = Number(product.lowStockAlert) || 10; // Usar valor personalizado
+                const lowStockThreshold = Number(product.lowStockAlert) || 10;
                 
                 // Contagem por categoria
                 const category = product.category || 'Sem categoria';
                 stats.categories[category] = (stats.categories[category] || 0) + 1;
                 
-                // Estoque baixo (usando valor personalizado de cada produto)
+                // Estoque baixo
                 if (stock <= lowStockThreshold && stock > 0) {
                     stats.lowStock++;
                 }
@@ -851,5 +855,5 @@ const DataService = {
 window.DataService = DataService;
 
 // Log de inicialização
-console.log("✅ Firebase DataService v2.0 inicializado e pronto para uso");
-console.log("🚀 Nova funcionalidade: Suporte a clientes nas vendas");
+console.log("✅ Firebase DataService v2.1 inicializado e pronto para uso");
+console.log("🚀 Funcionalidades: Produtos, Vendas, Estatísticas, Suporte a CRM");
