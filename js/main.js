@@ -1,4 +1,4 @@
-// js/main-v2.js - Sistema EliteControl v2.0 com IA e CRM Avançado
+// js/main-v2.js - Sistema EliteControl v2.0 com IA e CRM Avançado - CORRIGIDO
 
 // Variáveis globais
 let productModal, productForm, productModalTitle, productIdField, productNameField,
@@ -37,19 +37,22 @@ const sampleProducts = [
     { name: 'SSD 500GB Samsung', category: 'Armazenamento', price: 350.00, stock: 30, lowStockAlert: 20 }
 ];
 
+// Variáveis do sistema de vendas
+let saleCart = [];
+let availableProducts = [];
+let selectedCustomer = null;
+
 // === INICIALIZAÇÃO ===
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 EliteControl v2.0 inicializando...');
 
-    initializeModalElements(); // Garante que os elementos do modal sejam inicializados globalmente
-    setupEventListeners();     // Configura todos os outros event listeners, incluindo os do modal se aplicável
+    initializeModalElements();
+    setupEventListeners();
     firebase.auth().onAuthStateChanged(handleAuthStateChange);
 });
 
 function initializeModalElements() {
-    // Esta função apenas atribui os elementos do DOM a variáveis globais.
-    // Os event listeners são configurados em setupModalEventListeners.
     productModal = document.getElementById('productModal');
     productForm = document.getElementById('productForm');
     productModalTitle = document.getElementById('productModalTitle');
@@ -64,9 +67,9 @@ function initializeModalElements() {
     saveProductButton = document.getElementById('saveProductButton');
 }
 
-// === FUNÇÕES DE MODAL DE PRODUTOS (Definidas antes de serem usadas em setupEventListeners) ===
+// === FUNÇÕES DE MODAL DE PRODUTOS ===
+
 function setupModalEventListeners() {
-    // Esta função SÓ deve ser chamada se os elementos do modal estiverem presentes na página.
     console.log("🔧 Configurando event listeners do modal de produto");
 
     if (closeProductModalButton) {
@@ -94,9 +97,8 @@ function setupModalEventListeners() {
             handleModalClose();
         }
     });
-    modalEventListenersAttached = true; // Marcar que os listeners foram anexados
+    modalEventListenersAttached = true;
 }
-
 
 function handleModalClose() {
     if (isModalProcessing) {
@@ -136,12 +138,9 @@ function handleModalClose() {
 }
 
 function openProductModal(product = null) {
-    // Garante que os elementos do modal estão referenciados
-    // Isso é importante se esta função for chamada antes de initializeModalElements ter certeza de rodar.
     if (!productModal) initializeModalElements();
 
-
-    if (!productModal) { // Checa novamente após tentativa de inicialização
+    if (!productModal) {
         console.error("❌ Modal de produto não encontrado mesmo após tentativa de inicialização.");
         showTemporaryAlert("Erro: Componente modal de produto não encontrado na página.", "error");
         return;
@@ -167,7 +166,7 @@ function openProductModal(product = null) {
     } else {
         if (productModalTitle) productModalTitle.textContent = 'Adicionar Novo Produto';
         if (productIdField) productIdField.value = '';
-        if (productLowStockAlertField) productLowStockAlertField.value = 10; // Valor padrão
+        if (productLowStockAlertField) productLowStockAlertField.value = 10;
     }
 
     productModal.classList.remove('hidden');
@@ -234,7 +233,6 @@ async function handleProductFormSubmit(event) {
 }
 
 function validateProductForm() {
-    // Garante que os elementos do formulário estão referenciados
     if (!productNameField) initializeModalElements();
 
     if (!productNameField || !productCategoryField || !productPriceField || !productStockField || !productLowStockAlertField) {
@@ -287,6 +285,616 @@ function validateProductForm() {
     return true;
 }
 
+// === RENDERIZAÇÃO DE PRODUTOS ===
+
+function renderProductsList(products, container, userRole) {
+    console.log("📦 Renderizando lista de produtos para:", userRole);
+
+    if (!container) {
+        console.error("❌ Container não fornecido para renderizar produtos");
+        return;
+    }
+
+    const canEditProducts = userRole === 'Dono/Gerente' || userRole === 'Controlador de Estoque';
+
+    container.innerHTML = `
+        <div class="products-container">
+            <div class="products-header">
+                <h2 class="text-xl font-semibold text-slate-100 mb-4">Gestão de Produtos</h2>
+                ${canEditProducts ? `
+                    <button id="openAddProductModalButton" class="btn-primary">
+                        <i class="fas fa-plus mr-2"></i>
+                        Adicionar Produto
+                    </button>
+                ` : ''}
+            </div>
+
+            <div class="search-container mb-6">
+                <div class="relative">
+                    <input type="text" 
+                           id="productSearchField"
+                           class="form-input pl-10 w-full"
+                           placeholder="Buscar produtos...">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                </div>
+            </div>
+
+            <div id="productsTable" class="products-table-container">
+                ${renderProductsTable(products, canEditProducts)}
+            </div>
+        </div>
+    `;
+
+    // Configurar pesquisa
+    setupProductSearch(products, canEditProducts);
+}
+
+function renderProductsTable(products, canEdit) {
+    if (!products || products.length === 0) {
+        return `
+            <div class="text-center py-8 text-slate-400">
+                <i class="fas fa-box-open fa-3x mb-4"></i>
+                <p>Nenhum produto encontrado.</p>
+                ${canEdit ? '<p class="text-sm mt-2">Clique em "Adicionar Produto" para começar.</p>' : ''}
+            </div>
+        `;
+    }
+
+    return `
+        <table class="min-w-full bg-slate-800 shadow-md rounded-lg overflow-hidden">
+            <thead class="bg-slate-700">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Produto</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Categoria</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Preço</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estoque</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
+                    ${canEdit ? '<th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Ações</th>' : ''}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700">
+                ${products.map(product => renderProductRow(product, canEdit)).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function renderProductRow(product, canEdit) {
+    const lowStockThreshold = Number(product.lowStockAlert) || 10;
+    const isLowStock = product.stock <= lowStockThreshold && product.stock > 0;
+    const isOutOfStock = product.stock === 0;
+
+    let statusClass = 'text-green-400';
+    let statusIcon = 'fa-check-circle';
+    let statusText = 'Em estoque';
+
+    if (isOutOfStock) {
+        statusClass = 'text-red-400';
+        statusIcon = 'fa-times-circle';
+        statusText = 'Sem estoque';
+    } else if (isLowStock) {
+        statusClass = 'text-yellow-400';
+        statusIcon = 'fa-exclamation-triangle';
+        statusText = 'Estoque baixo';
+    }
+
+    return `
+        <tr class="hover:bg-slate-750 transition-colors duration-150">
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-slate-200">${product.name}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${product.category}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-300">${formatCurrency(product.price)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300">${product.stock} unidades</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${statusClass}">
+                <i class="fas ${statusIcon} mr-2"></i>
+                ${statusText}
+            </td>
+            ${canEdit ? `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button class="edit-product-btn text-sky-400 hover:text-sky-300 mr-2" 
+                            data-product-id="${product.id}">
+                        <i class="fas fa-edit mr-1"></i>
+                        Editar
+                    </button>
+                    <button class="delete-product-btn text-red-500 hover:text-red-400" 
+                            data-product-id="${product.id}" 
+                            data-product-name="${product.name}">
+                        <i class="fas fa-trash mr-1"></i>
+                        Excluir
+                    </button>
+                </td>
+            ` : ''}
+        </tr>
+    `;
+}
+
+function setupProductSearch(allProducts, canEdit) {
+    const searchField = document.getElementById('productSearchField');
+    if (!searchField) return;
+
+    searchField.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredProducts = allProducts.filter(product =>
+            product.name.toLowerCase().includes(searchTerm) ||
+            product.category.toLowerCase().includes(searchTerm)
+        );
+
+        const tableContainer = document.getElementById('productsTable');
+        if (tableContainer) {
+            tableContainer.innerHTML = renderProductsTable(filteredProducts, canEdit);
+        }
+    });
+}
+
+// === SISTEMA DE VENDAS ===
+
+function renderAvailableProducts(products) {
+    const container = document.getElementById('availableProductsList');
+    if (!container) return;
+
+    if (!products || products.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+                <i class="fas fa-box-open fa-3x mb-4"></i>
+                <p>Nenhum produto disponível.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = products.map(product => {
+        const isOutOfStock = product.stock === 0;
+        const isLowStock = product.stock <= (product.lowStockAlert || 10) && product.stock > 0;
+
+        return `
+            <div class="product-select-card ${isOutOfStock ? 'out-of-stock' : ''}" data-product-id="${product.id}">
+                <div class="product-select-header">
+                    <h4 class="product-select-name">${product.name}</h4>
+                    <span class="product-select-price">${formatCurrency(product.price)}</span>
+                </div>
+                
+                <div class="product-select-info">
+                    <span class="product-category">${product.category}</span>
+                    <span class="product-stock ${isOutOfStock ? 'out' : isLowStock ? 'low' : 'available'}">
+                        ${product.stock} em estoque
+                    </span>
+                </div>
+
+                ${!isOutOfStock ? `
+                    <div class="product-select-actions">
+                        <div class="quantity-controls">
+                            <button class="quantity-btn" onclick="changeQuantity('${product.id}', -1)">-</button>
+                            <input type="number" 
+                                   id="qty-${product.id}" 
+                                   class="quantity-input" 
+                                   value="1" 
+                                   min="1" 
+                                   max="${product.stock}"
+                                   onchange="updateQuantity('${product.id}')">
+                            <button class="quantity-btn" onclick="changeQuantity('${product.id}', 1)">+</button>
+                        </div>
+                        <button class="btn-primary btn-sm" onclick="toggleProductSelection('${product.id}')">
+                            <i class="fas fa-cart-plus mr-1"></i>
+                            Adicionar
+                        </button>
+                    </div>
+                ` : `
+                    <div class="product-select-actions">
+                        <button class="btn-secondary btn-sm w-full" disabled>
+                            <i class="fas fa-times mr-1"></i>
+                            Indisponível
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+    }).join('');
+}
+
+function addSaleFormStyles() {
+    if (!document.getElementById('saleFormStyles')) {
+        const style = document.createElement('style');
+        style.id = 'saleFormStyles';
+        style.textContent = `
+            .register-sale-container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+
+            .sale-header {
+                margin-bottom: 2rem;
+            }
+
+            .sale-info-card {
+                background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                border: 1px solid rgba(51, 65, 85, 0.5);
+                backdrop-filter: blur(10px);
+            }
+
+            .products-selection-card, .cart-card {
+                background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                border: 1px solid rgba(51, 65, 85, 0.5);
+                backdrop-filter: blur(10px);
+            }
+
+            .products-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 1rem;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+
+            .product-select-card {
+                background: rgba(51, 65, 85, 0.5);
+                border-radius: 0.5rem;
+                padding: 1rem;
+                border: 1px solid rgba(71, 85, 105, 0.5);
+                transition: all 0.3s ease;
+            }
+
+            .product-select-card:hover {
+                border-color: rgba(56, 189, 248, 0.5);
+                background: rgba(56, 189, 248, 0.05);
+            }
+
+            .product-select-card.out-of-stock {
+                opacity: 0.6;
+                border-color: rgba(239, 68, 68, 0.3);
+            }
+
+            .product-select-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 0.75rem;
+            }
+
+            .product-select-name {
+                font-weight: 600;
+                color: #F1F5F9;
+                margin-right: 0.5rem;
+            }
+
+            .product-select-price {
+                font-weight: 600;
+                color: #38BDF8;
+            }
+
+            .product-select-info {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+                font-size: 0.875rem;
+            }
+
+            .product-category {
+                color: #94A3B8;
+            }
+
+            .product-stock {
+                font-weight: 500;
+            }
+
+            .product-stock.available {
+                color: #10B981;
+            }
+
+            .product-stock.low {
+                color: #F59E0B;
+            }
+
+            .product-stock.out {
+                color: #EF4444;
+            }
+
+            .product-select-actions {
+                display: flex;
+                gap: 0.5rem;
+                align-items: center;
+            }
+
+            .quantity-controls {
+                display: flex;
+                align-items: center;
+                background: rgba(71, 85, 105, 0.5);
+                border-radius: 0.375rem;
+                border: 1px solid rgba(71, 85, 105, 0.5);
+            }
+
+            .quantity-btn {
+                background: none;
+                border: none;
+                color: #94A3B8;
+                padding: 0.25rem 0.5rem;
+                cursor: pointer;
+                transition: color 0.2s ease;
+            }
+
+            .quantity-btn:hover {
+                color: #F1F5F9;
+            }
+
+            .quantity-input {
+                background: none;
+                border: none;
+                color: #F1F5F9;
+                text-align: center;
+                width: 3rem;
+                padding: 0.25rem;
+            }
+
+            .quantity-input:focus {
+                outline: none;
+            }
+
+            .cart-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+            }
+
+            .cart-items {
+                min-height: 150px;
+            }
+
+            .empty-cart {
+                text-align: center;
+                padding: 2rem;
+                color: #94A3B8;
+            }
+
+            .cart-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem;
+                background: rgba(51, 65, 85, 0.3);
+                border-radius: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .cart-item-info {
+                flex: 1;
+            }
+
+            .cart-item-name {
+                font-weight: 500;
+                color: #F1F5F9;
+                margin-bottom: 0.25rem;
+            }
+
+            .cart-item-details {
+                font-size: 0.875rem;
+                color: #94A3B8;
+            }
+
+            .cart-item-price {
+                font-weight: 600;
+                color: #38BDF8;
+                margin-right: 1rem;
+            }
+
+            .cart-summary {
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+                padding-top: 1rem;
+                margin-top: 1rem;
+            }
+
+            .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+                color: #94A3B8;
+            }
+
+            .total-row {
+                font-size: 1.125rem;
+                font-weight: 600;
+                color: #F1F5F9;
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+                padding-top: 0.5rem;
+                margin-top: 0.5rem;
+            }
+
+            .sale-actions {
+                display: flex;
+                gap: 1rem;
+                justify-content: flex-end;
+                margin-top: 2rem;
+            }
+
+            .info-item {
+                text-align: center;
+            }
+
+            .info-label {
+                display: block;
+                font-size: 0.75rem;
+                color: #94A3B8;
+                margin-bottom: 0.25rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+
+            .info-value {
+                color: #F1F5F9;
+                font-weight: 500;
+            }
+
+            .loading-products {
+                grid-column: 1 / -1;
+                text-align: center;
+                padding: 2rem;
+                color: #94A3B8;
+            }
+
+            @media (max-width: 768px) {
+                .products-grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .sale-actions {
+                    flex-direction: column;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+function toggleProductSelection(productId) {
+    const product = availableProducts.find(p => p.id === productId);
+    if (!product) return;
+
+    const quantityInput = document.getElementById(`qty-${productId}`);
+    const quantity = parseInt(quantityInput?.value || 1);
+
+    if (quantity <= 0 || quantity > product.stock) {
+        showTemporaryAlert(`Quantidade inválida. Máximo disponível: ${product.stock}`, 'warning');
+        return;
+    }
+
+    const existingItemIndex = saleCart.findIndex(item => item.productId === productId);
+
+    if (existingItemIndex >= 0) {
+        saleCart[existingItemIndex].quantity += quantity;
+    } else {
+        saleCart.push({
+            productId: productId,
+            name: product.name,
+            price: product.price,
+            quantity: quantity,
+            category: product.category
+        });
+    }
+
+    updateSaleInterface();
+    showTemporaryAlert(`${product.name} adicionado ao carrinho`, 'success', 2000);
+}
+
+function changeQuantity(productId, delta) {
+    const quantityInput = document.getElementById(`qty-${productId}`);
+    if (!quantityInput) return;
+
+    const currentQuantity = parseInt(quantityInput.value);
+    const newQuantity = Math.max(1, currentQuantity + delta);
+    
+    const product = availableProducts.find(p => p.id === productId);
+    if (product && newQuantity <= product.stock) {
+        quantityInput.value = newQuantity;
+    }
+}
+
+function updateQuantity(productId) {
+    const quantityInput = document.getElementById(`qty-${productId}`);
+    if (!quantityInput) return;
+
+    const quantity = parseInt(quantityInput.value);
+    const product = availableProducts.find(p => p.id === productId);
+    
+    if (!product) return;
+
+    if (quantity < 1) {
+        quantityInput.value = 1;
+    } else if (quantity > product.stock) {
+        quantityInput.value = product.stock;
+        showTemporaryAlert(`Máximo disponível: ${product.stock}`, 'warning', 2000);
+    }
+}
+
+function removeCartItem(productId) {
+    saleCart = saleCart.filter(item => item.productId !== productId);
+    updateSaleInterface();
+    showTemporaryAlert('Item removido do carrinho', 'info', 2000);
+}
+
+function clearCart() {
+    saleCart = [];
+    updateSaleInterface();
+}
+
+function updateSaleInterface() {
+    updateCartDisplay();
+    updateFinalizeSaleButton();
+}
+
+function updateCartDisplay() {
+    const cartContainer = document.getElementById('cartItemsList');
+    const clearButton = document.getElementById('clearCartButton');
+    const summaryContainer = document.getElementById('cartSummary');
+
+    if (!cartContainer) return;
+
+    if (saleCart.length === 0) {
+        cartContainer.innerHTML = `
+            <div class="empty-cart">
+                <i class="fas fa-shopping-cart fa-2x mb-2 text-slate-400"></i>
+                <p class="text-slate-400">Nenhum produto adicionado</p>
+                <p class="text-sm text-slate-500">Selecione produtos acima para adicionar à venda</p>
+            </div>
+        `;
+        
+        if (clearButton) clearButton.style.display = 'none';
+        if (summaryContainer) summaryContainer.style.display = 'none';
+        return;
+    }
+
+    cartContainer.innerHTML = saleCart.map(item => `
+        <div class="cart-item">
+            <div class="cart-item-info">
+                <div class="cart-item-name">${item.name}</div>
+                <div class="cart-item-details">
+                    ${item.quantity}x ${formatCurrency(item.price)} = ${formatCurrency(item.quantity * item.price)}
+                </div>
+            </div>
+            <div class="cart-item-price">${formatCurrency(item.quantity * item.price)}</div>
+            <button class="btn-secondary btn-sm" onclick="removeCartItem('${item.productId}')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+
+    if (clearButton) clearButton.style.display = 'block';
+    if (summaryContainer) summaryContainer.style.display = 'block';
+
+    const subtotal = saleCart.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    
+    const subtotalEl = document.getElementById('cartSubtotal');
+    const totalEl = document.getElementById('cartTotal');
+    
+    if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+    if (totalEl) totalEl.textContent = formatCurrency(subtotal);
+}
+
+function updateCurrentTime() {
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        timeElement.textContent = new Date().toLocaleTimeString('pt-BR');
+    }
+}
+
+function updateFinalizeSaleButton() {
+    const button = document.getElementById('finalizeSaleButton');
+    if (!button) return;
+
+    button.disabled = saleCart.length === 0;
+}
+
+function closeSaleSuccessModal() {
+    const modal = document.getElementById('saleSuccessModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 // === AUTENTICAÇÃO E NAVEGAÇÃO ===
 
 async function handleAuthStateChange(user) {
@@ -315,7 +923,7 @@ async function handleAuthStateChange(user) {
             } else {
                 console.error('Dados do usuário ou cargo não encontrados para:', user.email);
                 showTemporaryAlert('Não foi possível carregar os dados do seu perfil. Tente novamente.', 'error');
-                await firebase.auth().signOut(); // Forçar logout se dados essenciais não forem encontrados
+                await firebase.auth().signOut();
             }
 
         } catch (error) {
@@ -754,10 +1362,6 @@ function addProductsConsultStyles() {
 
 // === VENDAS COM CLIENTE ===
 
-let saleCart = [];
-let availableProducts = [];
-let selectedCustomer = null;
-
 function renderRegisterSaleForm(container, currentUser) {
     console.log("💰 Renderizando formulário de registro de venda com CRM");
 
@@ -788,7 +1392,7 @@ function renderRegisterSaleForm(container, currentUser) {
             <div class="customer-selection-card mb-6">
                 <h3 class="text-lg font-semibold text-slate-100 mb-4">
                     <i class="fas fa-user mr-2"></i>
-                    Cliente
+                    Cliente (Opcional)
                 </h3>
 
                 <div class="customer-search-container">
@@ -1047,7 +1651,6 @@ function setupSaleFormWithCRMEventListeners(currentUser) {
             }
 
             searchTimeout = setTimeout(async () => {
-                // Verifica se o CRMService está disponível
                 if (typeof CRMService !== 'undefined' && typeof CRMService.searchCustomers === 'function') {
                     const suggestions = await CRMService.searchCustomers(searchTerm);
                     renderCustomerSuggestions(suggestions);
@@ -1139,7 +1742,6 @@ function renderCustomerSuggestions(suggestions) {
 
 async function selectCustomer(customerId) {
     try {
-        // Verifica se o CRMService está disponível
         if (typeof CRMService === 'undefined' || typeof CRMService.getCustomerById !== 'function') {
             console.warn("CRMService ou CRMService.getCustomerById não está definido.");
             showTemporaryAlert("Erro: Serviço de cliente indisponível.", "error");
@@ -1162,7 +1764,6 @@ async function selectCustomer(customerId) {
             const selectedCustPhone = document.getElementById('selectedCustomerPhone');
             if(selectedCustPhone) selectedCustPhone.textContent = customer.phone;
 
-
             // Mostrar estatísticas se disponíveis
             const stats = customer.totalPurchases > 0 ?
                 `${customer.totalPurchases} compras • Total: ${formatCurrency(customer.totalSpent)}` :
@@ -1172,7 +1773,6 @@ async function selectCustomer(customerId) {
 
             const selectedCustInfo = document.getElementById('selectedCustomerInfo');
             if(selectedCustInfo) selectedCustInfo.classList.remove('hidden');
-
 
             updateFinalizeSaleButton();
         }
@@ -1265,7 +1865,6 @@ function showNewCustomerModal() {
       if (customerNameInput) customerNameInput.focus();
     }, 100);
 
-
     // Máscara de telefone
     const phoneInput = document.getElementById('customerPhone');
     if (phoneInput) {
@@ -1282,7 +1881,6 @@ function showNewCustomerModal() {
             e.target.value = value;
         });
     }
-
 
     // Máscara de CPF
     const cpfInput = document.getElementById('customerCPF');
@@ -1321,7 +1919,6 @@ async function saveNewCustomer() {
     };
 
     try {
-        // Verifica se o CRMService está disponível
         if (typeof CRMService === 'undefined' || typeof CRMService.createOrUpdateCustomer !== 'function') {
             console.warn("CRMService ou CRMService.createOrUpdateCustomer não está definido.");
             showTemporaryAlert("Erro: Serviço de cliente indisponível para salvar.", "error");
@@ -1336,7 +1933,6 @@ async function saveNewCustomer() {
         const customerModal = document.querySelector('.customer-modal');
         if (customerModal) customerModal.remove();
 
-
         showTemporaryAlert('Cliente cadastrado com sucesso!', 'success');
 
     } catch (error) {
@@ -1344,9 +1940,6 @@ async function saveNewCustomer() {
         showTemporaryAlert('Erro ao cadastrar cliente. Verifique os dados.', 'error');
     }
 }
-
-window.selectCustomer = selectCustomer;
-window.saveNewCustomer = saveNewCustomer;
 
 async function finalizeSaleWithCustomer(currentUser) {
     if (saleCart.length === 0) {
@@ -1357,7 +1950,6 @@ async function finalizeSaleWithCustomer(currentUser) {
     const finalizeButton = document.getElementById('finalizeSaleButton');
     if (!finalizeButton) return;
     const originalText = finalizeButton.textContent;
-
 
     // Desabilitar botão e mostrar loading
     finalizeButton.disabled = true;
@@ -1403,7 +1995,6 @@ async function finalizeSaleWithCustomer(currentUser) {
         const selectedCustInfo = document.getElementById('selectedCustomerInfo');
         if(selectedCustInfo) selectedCustInfo.classList.add('hidden');
 
-
         // Recarregar produtos
         availableProducts = await DataService.getProducts();
         renderAvailableProducts(availableProducts);
@@ -1423,16 +2014,7 @@ async function finalizeSaleWithCustomer(currentUser) {
     }
 }
 
-function updateFinalizeSaleButton() {
-    const button = document.getElementById('finalizeSaleButton');
-    if (!button) return;
-
-    // Habilitar apenas se houver produtos no carrinho
-    // Cliente é opcional agora
-    button.disabled = saleCart.length === 0;
-}
-
-// === MINHAS VENDAS (VENDEDOR) ===
+// === FUNÇÕES DE VENDA ===
 
 function renderSalesList(sales, container, userRole, isPersonal = false) {
     console.log(`💰 Renderizando ${isPersonal ? 'minhas vendas' : 'lista de vendas'}:`, sales.length);
@@ -1527,7 +2109,6 @@ async function renderCustomersSection(container, currentUser) {
     }
 
     try {
-        // Verifica se o CRMService está disponível
         if (typeof CRMService === 'undefined' || typeof CRMService.getCustomers !== 'function' || typeof CRMService.getCustomerInsights !== 'function') {
             console.warn("CRMService ou suas funções não estão definidos.");
             container.innerHTML = `<div class="text-center py-8 text-red-400"><i class="fas fa-exclamation-triangle fa-3x mb-4"></i><p>Erro: Serviço de CRM indisponível.</p></div>`;
@@ -1589,41 +2170,13 @@ async function renderCustomersSection(container, currentUser) {
                     </div>
                 </div>
 
-                <div class="customers-filters bg-slate-800 p-4 rounded-lg mb-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="relative">
-                            <input type="text"
-                                   id="customerFilterSearch"
-                                   class="form-input pl-10"
-                                   placeholder="Buscar cliente...">
-                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
-                        </div>
-
-                        <select id="customerFilterStatus" class="form-select">
-                            <option value="">Todos os status</option>
-                            <option value="active">Ativos</option>
-                            <option value="inactive">Inativos (+30 dias)</option>
-                            <option value="vip">VIP</option>
-                        </select>
-
-                        <button id="generatePromotionsButton" class="btn-primary">
-                            <i class="fas fa-magic mr-2"></i>
-                            Gerar Promoções com IA
-                        </button>
-                    </div>
-                </div>
-
-                <div id="customersList" class="customers-grid">
-                    ${renderCustomerCards(customers)}
+                <div class="text-center py-8 text-slate-400">
+                    <i class="fas fa-users-cog fa-3x mb-4"></i>
+                    <p>Sistema CRM em desenvolvimento</p>
+                    <p class="text-sm mt-2">Funcionalidades de clientes serão implementadas em breve.</p>
                 </div>
             </div>
         `;
-
-        // Aplicar estilos
-        addCustomersStyles();
-
-        // Event listeners
-        setupCustomersEventListeners(customers);
 
     } catch (error) {
         console.error("❌ Erro ao carregar clientes:", error);
@@ -1636,814 +2189,23 @@ async function renderCustomersSection(container, currentUser) {
     }
 }
 
-function renderCustomerCards(customers) {
-    if (customers.length === 0) {
-        return `
-            <div class="text-center py-8 text-slate-400 col-span-full">
-                <i class="fas fa-users fa-3x mb-4"></i>
-                <p>Nenhum cliente cadastrado.</p>
-            </div>
-        `;
-    }
+// === SEÇÃO DE USUÁRIOS ===
 
-    return customers.map(customer => {
-        const daysSinceLastPurchase = customer.lastPurchaseDate ?
-            Math.floor((new Date() - customer.lastPurchaseDate.toDate()) / (1000 * 60 * 60 * 24)) : null;
+function renderUsersSection(container) {
+    console.log("👥 Renderizando seção de usuários (em desenvolvimento)");
 
-        const isInactive = daysSinceLastPurchase && daysSinceLastPurchase > 30;
-        const isVIP = customer.totalPurchases >= 10;
+    container.innerHTML = `
+        <div class="users-container">
+            <h2 class="text-xl font-semibold text-slate-100 mb-4">Gerenciamento de Usuários</h2>
 
-        return `
-            <div class="customer-card ${isInactive ? 'inactive' : ''}" data-customer-id="${customer.id}">
-                <div class="customer-card-header">
-                    <div class="customer-avatar">
-                        ${customer.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div class="customer-info">
-                        <h3 class="customer-name">${customer.name}</h3>
-                        <p class="customer-phone">${customer.phone}</p>
-                    </div>
-                    ${isVIP ? '<span class="vip-badge">VIP</span>' : ''}
-                    ${isInactive ? '<span class="inactive-badge">Inativo</span>' : ''}
-                </div>
-
-                <div class="customer-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Compras:</span>
-                        <span class="stat-value">${customer.totalPurchases || 0}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Total:</span>
-                        <span class="stat-value">${formatCurrency(customer.totalSpent || 0)}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Ticket Médio:</span>
-                        <span class="stat-value">${formatCurrency(customer.averageTicket || 0)}</span>
-                    </div>
-                </div>
-
-                ${daysSinceLastPurchase !== null ? `
-                    <div class="last-purchase">
-                        <i class="fas fa-clock mr-1"></i>
-                        Última compra: ${daysSinceLastPurchase} dias atrás
-                    </div>
-                ` : '<div class="last-purchase"><i class="fas fa-clock mr-1"></i> Nenhuma compra registrada</div>'}
-
-                <div class="customer-actions">
-                    <button class="btn-secondary btn-sm" onclick="viewCustomerHistory('${customer.id}')">
-                        <i class="fas fa-history mr-1"></i>
-                        Histórico
-                    </button>
-                    ${isInactive ? `
-                        <button class="btn-primary btn-sm" onclick="generateCustomerPromotion('${customer.id}')">
-                            <i class="fas fa-gift mr-1"></i>
-                            Promoção IA
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function addCustomersStyles() {
-    if (!document.getElementById('customersStyles')) {
-        const style = document.createElement('style');
-        style.id = 'customersStyles';
-        style.textContent = `
-            .customers-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-                gap: 1.5rem;
-            }
-
-            .customer-card {
-                background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
-                border-radius: 0.75rem;
-                padding: 1.5rem;
-                border: 1px solid rgba(51, 65, 85, 0.5);
-                transition: all 0.3s ease;
-            }
-
-            .customer-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-                border-color: rgba(56, 189, 248, 0.5);
-            }
-
-            .customer-card.inactive {
-                border-color: rgba(245, 158, 11, 0.5);
-                background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(45, 35, 20, 0.9) 100%);
-            }
-
-            .customer-card-header {
-                display: flex;
-                align-items: center;
-                margin-bottom: 1rem;
-                position: relative;
-            }
-
-            .customer-avatar {
-                width: 3rem;
-                height: 3rem;
-                background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-weight: 600;
-                margin-right: 1rem;
-            }
-
-            .customer-info {
-                flex: 1;
-            }
-
-            .customer-name {
-                font-weight: 600;
-                color: #F1F5F9;
-                margin-bottom: 0.25rem;
-            }
-
-            .customer-phone {
-                font-size: 0.875rem;
-                color: #94A3B8;
-            }
-
-            .vip-badge, .inactive-badge {
-                position: absolute;
-                top: 0;
-                right: 0;
-                padding: 0.25rem 0.75rem;
-                border-radius: 9999px;
-                font-size: 0.75rem;
-                font-weight: 500;
-            }
-
-            .vip-badge {
-                background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-                color: #1F2937;
-            }
-
-            .inactive-badge {
-                background: rgba(245, 158, 11, 0.2);
-                color: #F59E0B;
-                border: 1px solid rgba(245, 158, 11, 0.5);
-            }
-
-            .customer-stats {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 0.5rem;
-                margin-bottom: 1rem;
-            }
-
-            .stat-item {
-                text-align: center;
-                padding: 0.5rem;
-                background: rgba(51, 65, 85, 0.3);
-                border-radius: 0.5rem;
-            }
-
-            .stat-label {
-                display: block;
-                font-size: 0.75rem;
-                color: #94A3B8;
-                margin-bottom: 0.25rem;
-            }
-
-            .stat-value {
-                display: block;
-                font-weight: 600;
-                color: #F1F5F9;
-            }
-
-            .last-purchase {
-                font-size: 0.875rem;
-                color: #94A3B8;
-                margin-bottom: 1rem;
-                padding: 0.5rem;
-                background: rgba(51, 65, 85, 0.3);
-                border-radius: 0.5rem;
-                text-align: center;
-            }
-
-            .customer-actions {
-                display: flex;
-                gap: 0.5rem;
-            }
-
-            .customer-actions button {
-                flex: 1;
-            }
-
-            @media (max-width: 768px) {
-                .customers-grid {
-                    grid-template-columns: 1fr;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-async function viewCustomerHistory(customerId) {
-    try {
-        // Verifica se o CRMService está disponível
-        if (typeof CRMService === 'undefined' ||
-            typeof CRMService.getCustomerById !== 'function' ||
-            typeof CRMService.getCustomerPurchaseHistory !== 'function' ||
-            typeof CRMService.analyzeCustomerPreferences !== 'function') {
-            console.warn("CRMService ou suas funções não estão definidos para viewCustomerHistory.");
-            showTemporaryAlert("Erro: Serviço de cliente indisponível para histórico.", "error");
-            return;
-        }
-
-        const [customer, history, preferences] = await Promise.all([
-            CRMService.getCustomerById(customerId),
-            CRMService.getCustomerPurchaseHistory(customerId),
-            CRMService.analyzeCustomerPreferences(customerId)
-        ]);
-
-        showCustomerHistoryModal(customer, history, preferences);
-
-    } catch (error) {
-        console.error("❌ Erro ao carregar histórico do cliente:", error);
-        showTemporaryAlert("Erro ao carregar histórico", "error");
-    }
-}
-
-function showCustomerHistoryModal(customer, history, preferences) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-backdrop show';
-    modal.id = 'customerHistoryModal';
-
-    modal.innerHTML = `
-        <div class="modal-content show" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header">
-                <h3 class="modal-title">Histórico do Cliente</h3>
-                <button class="modal-close" onclick="document.getElementById('customerHistoryModal').remove()">
-                    &times;
-                </button>
-            </div>
-
-            <div class="modal-body">
-                <div class="customer-detail-header">
-                    <div class="customer-avatar-large">
-                        ${customer.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div class="customer-detail-info">
-                        <h2 class="text-xl font-semibold text-slate-100">${customer.name}</h2>
-                        <p class="text-slate-400">${customer.phone} ${customer.email ? '• ' + customer.email : ''}</p>
-                        <p class="text-sm text-slate-500 mt-1">
-                            Cliente desde: ${customer.createdAt ? formatDate(customer.createdAt) : 'N/A'}
-                        </p>
-                    </div>
-                </div>
-
-                <div class="customer-detail-stats">
-                    <div class="detail-stat-card">
-                        <i class="fas fa-shopping-bag text-2xl text-sky-400 mb-2"></i>
-                        <div class="text-2xl font-bold text-slate-100">${customer.totalPurchases || 0}</div>
-                        <div class="text-sm text-slate-400">Compras</div>
-                    </div>
-                    <div class="detail-stat-card">
-                        <i class="fas fa-dollar-sign text-2xl text-green-400 mb-2"></i>
-                        <div class="text-2xl font-bold text-slate-100">${formatCurrency(customer.totalSpent || 0)}</div>
-                        <div class="text-sm text-slate-400">Total Gasto</div>
-                    </div>
-                    <div class="detail-stat-card">
-                        <i class="fas fa-receipt text-2xl text-purple-400 mb-2"></i>
-                        <div class="text-2xl font-bold text-slate-100">${formatCurrency(customer.averageTicket || 0)}</div>
-                        <div class="text-sm text-slate-400">Ticket Médio</div>
-                    </div>
-                    <div class="detail-stat-card">
-                        <i class="fas fa-calendar text-2xl text-yellow-400 mb-2"></i>
-                        <div class="text-2xl font-bold text-slate-100">
-                            ${preferences.purchasePatterns.averageDaysBetweenPurchases || 'N/A'}
-                        </div>
-                        <div class="text-sm text-slate-400">Dias entre Compras</div>
-                    </div>
-                </div>
-
-                <div class="customer-preferences">
-                    <h3 class="text-lg font-semibold text-slate-100 mb-3">
-                        <i class="fas fa-heart mr-2"></i>
-                        Preferências e Insights
-                    </h3>
-
-                    <div class="preferences-grid">
-                        <div class="preference-section">
-                            <h4 class="text-sm font-medium text-slate-300 mb-2">Categorias Favoritas</h4>
-                            ${preferences.favoriteCategories.map(cat => `
-                                <div class="preference-item">
-                                    <span class="preference-name">${cat.name}</span>
-                                    <span class="preference-value">${cat.purchases} compras</span>
-                                </div>
-                            `).join('') || '<p class="text-slate-500">Nenhuma categoria identificada</p>'}
-                        </div>
-
-                        <div class="preference-section">
-                            <h4 class="text-sm font-medium text-slate-300 mb-2">Produtos Mais Comprados</h4>
-                            ${preferences.favoriteProducts.slice(0, 3).map(prod => `
-                                <div class="preference-item">
-                                    <span class="preference-name">${prod.name}</span>
-                                    <span class="preference-value">${prod.quantity} unidades</span>
-                                </div>
-                            `).join('') || '<p class="text-slate-500">Nenhum produto identificado</p>'}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="purchase-history">
-                    <h3 class="text-lg font-semibold text-slate-100 mb-3">
-                        <i class="fas fa-history mr-2"></i>
-                        Histórico de Compras
-                    </h3>
-
-                    ${history.length > 0 ? `
-                        <div class="history-list">
-                            ${history.slice(0, 10).map(sale => `
-                                <div class="history-item">
-                                    <div class="history-date">
-                                        <i class="fas fa-calendar-alt mr-2"></i>
-                                        ${formatDate(sale.date)}
-                                    </div>
-                                    <div class="history-products">
-                                        ${sale.productsDetail.map(p => `${p.name} (x${p.quantity})`).join(', ')}
-                                    </div>
-                                    <div class="history-total">
-                                        ${formatCurrency(sale.total)}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<p class="text-slate-500 text-center">Nenhuma compra registrada</p>'}
-                </div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('customerHistoryModal').remove()">
-                    Fechar
-                </button>
-                ${customer.totalPurchases > 0 ? `
-                    <button class="btn-primary" onclick="generateCustomerPromotion('${customer.id}')">
-                        <i class="fas fa-magic mr-2"></i>
-                        Gerar Promoção com IA
-                    </button>
-                ` : ''}
+            <div class="text-center py-16 text-slate-400">
+                <i class="fas fa-users-cog fa-4x mb-4"></i>
+                <p class="text-lg">Seção em desenvolvimento</p>
+                <p class="text-sm mt-2">Em breve você poderá gerenciar usuários e permissões do sistema.</p>
             </div>
         </div>
     `;
-
-    document.body.appendChild(modal);
-
-    // Estilos do modal
-    addCustomerHistoryStyles();
 }
-
-function addCustomerHistoryStyles() {
-    if (!document.getElementById('customerHistoryStyles')) {
-        const style = document.createElement('style');
-        style.id = 'customerHistoryStyles';
-        style.textContent = `
-            .customer-detail-header {
-                display: flex;
-                align-items: center;
-                padding: 1.5rem;
-                background: rgba(51, 65, 85, 0.3);
-                border-radius: 0.75rem;
-                margin-bottom: 1.5rem;
-            }
-
-            .customer-avatar-large {
-                width: 5rem;
-                height: 5rem;
-                background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 1.5rem;
-                font-weight: 600;
-                margin-right: 1.5rem;
-            }
-
-            .customer-detail-stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 1rem;
-                margin-bottom: 1.5rem;
-            }
-
-            .detail-stat-card {
-                background: rgba(51, 65, 85, 0.3);
-                padding: 1.5rem;
-                border-radius: 0.75rem;
-                text-align: center;
-                border: 1px solid rgba(51, 65, 85, 0.5);
-            }
-
-            .customer-preferences {
-                margin-bottom: 1.5rem;
-            }
-
-            .preferences-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 1rem;
-            }
-
-            .preference-section {
-                background: rgba(51, 65, 85, 0.3);
-                padding: 1rem;
-                border-radius: 0.5rem;
-            }
-
-            .preference-item {
-                display: flex;
-                justify-content: space-between;
-                padding: 0.5rem 0;
-                border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-            }
-
-            .preference-item:last-child {
-                border-bottom: none;
-            }
-
-            .preference-name {
-                color: #F1F5F9;
-                font-size: 0.875rem;
-            }
-
-            .preference-value {
-                color: #94A3B8;
-                font-size: 0.875rem;
-            }
-
-            .history-list {
-                max-height: 300px;
-                overflow-y: auto;
-            }
-
-            .history-item {
-                display: grid;
-                grid-template-columns: auto 1fr auto;
-                gap: 1rem;
-                padding: 0.75rem;
-                background: rgba(51, 65, 85, 0.3);
-                border-radius: 0.5rem;
-                margin-bottom: 0.5rem;
-                align-items: center;
-            }
-
-            .history-date {
-                color: #94A3B8;
-                font-size: 0.875rem;
-                white-space: nowrap;
-            }
-
-            .history-products {
-                color: #F1F5F9;
-                font-size: 0.875rem;
-            }
-
-            .history-total {
-                color: #38BDF8;
-                font-weight: 600;
-                white-space: nowrap;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-async function generateCustomerPromotion(customerId) {
-    try {
-        // Verifica se o CRMService está disponível
-        if (typeof CRMService === 'undefined' ||
-            typeof CRMService.getCustomerById !== 'function' ||
-            typeof CRMService.analyzeCustomerPreferences !== 'function' ||
-            typeof CRMService.generatePromotionalMessage !== 'function') {
-            console.warn("CRMService ou suas funções não estão definidos para generateCustomerPromotion.");
-            showTemporaryAlert("Erro: Serviço de cliente indisponível para gerar promoção.", "error");
-            return;
-        }
-
-        showTemporaryAlert("Gerando promoção personalizada com IA...", "info", 3000);
-
-        const [customer, preferences] = await Promise.all([
-            CRMService.getCustomerById(customerId),
-            CRMService.analyzeCustomerPreferences(customerId)
-        ]);
-
-        const promotion = await CRMService.generatePromotionalMessage(customer, preferences);
-
-        showPromotionModal(promotion);
-
-    } catch (error) {
-        console.error("❌ Erro ao gerar promoção:", error);
-        showTemporaryAlert("Erro ao gerar promoção", "error");
-    }
-}
-
-function showPromotionModal(promotion) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-backdrop show';
-    modal.id = 'promotionModal';
-
-    modal.innerHTML = `
-        <div class="modal-content show" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 class="modal-title">
-                    <i class="fas fa-magic mr-2 text-purple-400"></i>
-                    Promoção Gerada com IA
-                </h3>
-                <button class="modal-close" onclick="document.getElementById('promotionModal').remove()">
-                    &times;
-                </button>
-            </div>
-
-            <div class="modal-body">
-                <div class="promotion-info">
-                    <div class="promotion-meta">
-                        <span class="meta-item">
-                            <i class="fas fa-user mr-1"></i>
-                            ${promotion.customerName}
-                        </span>
-                        <span class="meta-item">
-                            <i class="fas fa-tag mr-1"></i>
-                            ${promotion.type}
-                        </span>
-                        <span class="meta-item">
-                            <i class="fas fa-calendar mr-1"></i>
-                            Válida até ${formatDate(promotion.validUntil)}
-                        </span>
-                    </div>
-
-                    <div class="promotion-message">
-                        <h4 class="text-sm font-medium text-slate-300 mb-2">Mensagem Personalizada:</h4>
-                        <div class="message-content">
-                            ${promotion.message.split('\n').map(line => `<p>${line}</p>`).join('')}
-                        </div>
-                    </div>
-
-                    ${promotion.recommendations.length > 0 ? `
-                        <div class="promotion-products">
-                            <h4 class="text-sm font-medium text-slate-300 mb-2">Produtos Recomendados:</h4>
-                            <div class="recommended-products">
-                                ${promotion.recommendations.map(product => `
-                                    <div class="recommended-product">
-                                        <span class="product-name">${product.name}</span>
-                                        <span class="product-price">${formatCurrency(product.price)}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('promotionModal').remove()">
-                    Fechar
-                </button>
-                <button class="btn-primary" onclick="copyPromotionMessage()">
-                    <i class="fas fa-copy mr-2"></i>
-                    Copiar Mensagem
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Adicionar estilos
-    addPromotionStyles();
-}
-
-function addPromotionStyles() {
-    if (!document.getElementById('promotionStyles')) {
-        const style = document.createElement('style');
-        style.id = 'promotionStyles';
-        style.textContent = `
-            .promotion-meta {
-                display: flex;
-                gap: 1rem;
-                margin-bottom: 1rem;
-                padding: 0.75rem;
-                background: rgba(99, 102, 241, 0.1);
-                border-radius: 0.5rem;
-                border: 1px solid rgba(99, 102, 241, 0.3);
-            }
-
-            .meta-item {
-                font-size: 0.875rem;
-                color: #A78BFA;
-            }
-
-            .promotion-message {
-                margin-bottom: 1.5rem;
-            }
-
-            .message-content {
-                background: rgba(51, 65, 85, 0.3);
-                padding: 1rem;
-                border-radius: 0.5rem;
-                border: 1px solid rgba(51, 65, 85, 0.5);
-                white-space: pre-wrap;
-                color: #F1F5F9;
-                font-size: 0.875rem;
-                line-height: 1.6;
-            }
-
-            .message-content p {
-                margin-bottom: 0.5rem;
-            }
-
-            .message-content p:last-child {
-                margin-bottom: 0;
-            }
-
-            .recommended-products {
-                display: grid;
-                gap: 0.5rem;
-            }
-
-            .recommended-product {
-                display: flex;
-                justify-content: space-between;
-                padding: 0.5rem;
-                background: rgba(51, 65, 85, 0.3);
-                border-radius: 0.5rem;
-            }
-
-            .product-name {
-                color: #F1F5F9;
-                font-size: 0.875rem;
-            }
-
-            .product-price {
-                color: #38BDF8;
-                font-weight: 600;
-                font-size: 0.875rem;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-function copyPromotionMessage() {
-    const messageContent = document.querySelector('.message-content');
-    if (messageContent) {
-        const text = messageContent.innerText;
-        navigator.clipboard.writeText(text).then(() => {
-            showTemporaryAlert("Mensagem copiada para a área de transferência!", "success");
-        }).catch(() => {
-            showTemporaryAlert("Erro ao copiar mensagem", "error");
-        });
-    }
-}
-
-window.viewCustomerHistory = viewCustomerHistory;
-window.generateCustomerPromotion = generateCustomerPromotion;
-window.copyPromotionMessage = copyPromotionMessage;
-
-// === FUNÇÕES AUXILIARES MELHORADAS ===
-
-function showSaleSuccessModal(sale) {
-    const total = sale.productsDetail.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-
-    const modalHtml = `
-        <div class="modal-backdrop show" id="saleSuccessModal">
-            <div class="modal-content show" style="max-width: 500px;">
-                <div class="modal-header">
-                    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
-                    <h3 class="modal-title">Venda Realizada com Sucesso!</h3>
-                </div>
-
-                <div class="modal-body">
-                    <div class="success-details">
-                        <div class="detail-row">
-                            <span class="detail-label">Total da Venda:</span>
-                            <span class="detail-value text-green-500 font-bold text-xl">${formatCurrency(total)}</span>
-                        </div>
-
-                        ${sale.customerName ? `
-                            <div class="detail-row">
-                                <span class="detail-label">Cliente:</span>
-                                <span class="detail-value">${sale.customerName}</span>
-                            </div>
-                        ` : ''}
-
-                        <div class="detail-row">
-                            <span class="detail-label">Data:</span>
-                            <span class="detail-value">${formatDate(new Date())}</span>
-                        </div>
-
-                        <div class="detail-row">
-                            <span class="detail-label">Produtos:</span>
-                            <span class="detail-value">${sale.productsDetail.length} item(s)</span>
-                        </div>
-
-                        <div class="products-sold">
-                            <h4 class="text-sm font-semibold text-slate-300 mb-2">Itens Vendidos:</h4>
-                            <div class="sold-items">
-                                ${sale.productsDetail.map(item => `
-                                    <div class="sold-item">
-                                        <span>${item.name}</span>
-                                        <span>${item.quantity}x ${formatCurrency(item.unitPrice)}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button class="btn-secondary" onclick="closeSaleSuccessModal(); window.print();">
-                        <i class="fas fa-print mr-2"></i>
-                        Imprimir
-                    </button>
-                    <button class="btn-primary" onclick="closeSaleSuccessModal()">
-                        <i class="fas fa-thumbs-up mr-2"></i>
-                        Perfeito!
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Adicionar estilos específicos do modal de sucesso
-    if (!document.getElementById('saleSuccessStyles')) {
-        const style = document.createElement('style');
-        style.id = 'saleSuccessStyles';
-        style.textContent = `
-            .success-details {
-                background: rgba(16, 185, 129, 0.1);
-                border: 1px solid rgba(16, 185, 129, 0.3);
-                border-radius: 0.5rem;
-                padding: 1rem;
-                margin-bottom: 1rem;
-            }
-
-            .detail-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 0.5rem;
-            }
-
-            .detail-label {
-                color: #94A3B8;
-                font-size: 0.875rem;
-            }
-
-            .detail-value {
-                color: #F1F5F9;
-                font-weight: 500;
-            }
-
-            .products-sold {
-                margin-top: 1rem;
-                padding-top: 1rem;
-                border-top: 1px solid rgba(51, 65, 85, 0.5);
-            }
-
-            .sold-item {
-                display: flex;
-                justify-content: space-between;
-                padding: 0.25rem 0;
-                font-size: 0.875rem;
-                color: #94A3B8;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-
-// === FUNÇÕES GLOBAIS RESTANTES ===
-
-// Manter todas as funções globais necessárias
-window.toggleProductSelection = toggleProductSelection;
-window.changeQuantity = changeQuantity;
-window.updateQuantity = updateQuantity;
-window.removeCartItem = removeCartItem;
-window.closeSaleSuccessModal = closeSaleSuccessModal;
-window.handleEditProduct = handleEditProduct;
-window.handleDeleteProductConfirmation = handleDeleteProductConfirmation;
-window.openProductModal = openProductModal;
-
-// Funções do sistema de clientes
-window.selectCustomer = selectCustomer;
-window.saveNewCustomer = saveNewCustomer;
-window.viewCustomerHistory = viewCustomerHistory;
-window.generateCustomerPromotion = generateCustomerPromotion;
-window.copyPromotionMessage = copyPromotionMessage;
-
 
 // === CONFIGURAÇÃO DE EVENT LISTENERS ===
 
@@ -2453,8 +2215,6 @@ function setupEventListeners() {
     setupFormListeners();
     setupNavigationListeners();
 
-    // A configuração dos listeners do modal de produto só deve ocorrer se os elementos do modal existirem
-    // (geralmente na página dashboard.html) e se ainda não foram configurados.
     if (productModal && !modalEventListenersAttached) {
         if (typeof setupModalEventListeners === 'function') {
             setupModalEventListeners();
@@ -2462,15 +2222,12 @@ function setupEventListeners() {
             console.error("CRITICAL: A função setupModalEventListeners não está definida globalmente quando setupEventListeners é chamada.");
         }
     } else if (!productModal && window.location.pathname.includes('dashboard.html')) {
-        // Se estamos no dashboard mas o modal não foi encontrado, é um problema.
         console.warn("⚠️ productModal não encontrado no dashboard.html. Listeners do modal não serão anexados.");
     }
-
 
     setupDropdownListeners();
     setupProductActionListeners();
 }
-
 
 function setupFormListeners() {
     const loginForm = document.getElementById('loginForm');
@@ -2541,8 +2298,6 @@ function setupDropdownListeners() {
 }
 
 function setupProductActionListeners() {
-    // Usar delegação de eventos no 'document' para garantir que os botões funcionem
-    // mesmo que sejam adicionados dinamicamente ao DOM.
     document.addEventListener('click', function(e) {
         const editButton = e.target.closest('.edit-product-btn');
         if (editButton) {
@@ -2571,82 +2326,6 @@ function setupProductActionListeners() {
     });
 }
 
-function setupCustomersEventListeners(customers) {
-    const searchInput = document.getElementById('customerFilterSearch');
-    const statusFilter = document.getElementById('customerFilterStatus');
-    const generateButton = document.getElementById('generatePromotionsButton');
-
-    const applyFilters = () => {
-        const searchTerm = searchInput?.value.toLowerCase() || '';
-        const status = statusFilter?.value || '';
-
-        let filtered = customers;
-
-        if (searchTerm) {
-            filtered = filtered.filter(c =>
-                c.name.toLowerCase().includes(searchTerm) ||
-                c.phone.includes(searchTerm) ||
-                (c.email && c.email.toLowerCase().includes(searchTerm))
-            );
-        }
-
-        if (status) {
-            filtered = filtered.filter(c => {
-                const daysSinceLastPurchase = c.lastPurchaseDate ?
-                    Math.floor((new Date() - c.lastPurchaseDate.toDate()) / (1000 * 60 * 60 * 24)) : null;
-
-                switch (status) {
-                    case 'active':
-                        return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 30;
-                    case 'inactive':
-                        return daysSinceLastPurchase !== null && daysSinceLastPurchase > 30;
-                    case 'vip':
-                        return c.totalPurchases >= 10;
-                    default:
-                        return true;
-                }
-            });
-        }
-        const customersListEl = document.getElementById('customersList');
-        if(customersListEl) customersListEl.innerHTML = renderCustomerCards(filtered);
-    };
-
-    if (searchInput) searchInput.addEventListener('input', applyFilters);
-    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
-
-    if (generateButton) {
-        generateButton.addEventListener('click', async () => {
-            try {
-                // Verifica se o CRMService está disponível
-                if (typeof CRMService === 'undefined' || typeof CRMService.getInactiveCustomers !== 'function') {
-                    console.warn("CRMService ou CRMService.getInactiveCustomers não está definido.");
-                    showTemporaryAlert("Erro: Serviço de cliente indisponível para gerar promoções.", "error");
-                    return;
-                }
-
-                const inactiveCustomers = await CRMService.getInactiveCustomers(30);
-
-                if (inactiveCustomers.length === 0) {
-                    showTemporaryAlert("Nenhum cliente inativo encontrado", "info");
-                    return;
-                }
-
-                showTemporaryAlert(`Gerando promoções para ${inactiveCustomers.length} clientes inativos...`, "info", 3000);
-
-                for (const customer of inactiveCustomers.slice(0, 5)) { // Limitar para demonstração
-                    await generateCustomerPromotion(customer.id);
-                }
-
-                showTemporaryAlert("Promoções geradas com sucesso!", "success");
-
-            } catch (error) {
-                console.error("❌ Erro ao gerar promoções em massa:", error);
-                showTemporaryAlert("Erro ao gerar promoções", "error");
-            }
-        });
-    }
-}
-
 // === HANDLERS DE EVENTOS ===
 
 function handleHashChange() {
@@ -2656,14 +2335,11 @@ function handleHashChange() {
         return;
     }
 
-
     const userRole = localStorage.getItem('elitecontrol_user_role');
     if (!userRole) {
         console.warn("Hash mudou, mas role do usuário não encontrado no localStorage. Logout pode ser necessário.");
-        // Poderia forçar logout aqui se o role é crítico para a navegação.
         return;
     }
-
 
     const section = window.location.hash.substring(1);
     const defaultSection = getDefaultSection(userRole);
@@ -2753,19 +2429,16 @@ async function handleLogin(e) {
             }
 
             if (userData && userData.role === perfil) {
-                 // O handleAuthStateChange cuidará do redirecionamento e UI.
-                showLoginError(''); // Limpa qualquer erro anterior
+                showLoginError('');
                 console.log("✅ Login bem-sucedido, aguardando redirecionamento pelo AuthStateChange.");
             } else if (userData && userData.role !== perfil) {
                 await firebase.auth().signOut();
                 showLoginError(`Perfil selecionado (${perfil}) não corresponde ao perfil do usuário (${userData.role}).`);
             } else {
-                // Caso raro onde userData é nulo mesmo após as tentativas.
                 await firebase.auth().signOut();
                 showLoginError('Não foi possível verificar os dados do perfil. Tente novamente.');
             }
         } else {
-             // Caso raro onde o user é nulo após signIn bem-sucedido (improvável).
             showLoginError('Erro inesperado durante o login. Tente novamente.');
         }
 
@@ -2776,7 +2449,7 @@ async function handleLogin(e) {
 
         switch (error.code) {
             case 'auth/user-not-found':
-            case 'auth/invalid-credential': // Novo código de erro para credenciais inválidas (v9+)
+            case 'auth/invalid-credential':
                 friendlyMessage = "Usuário não encontrado ou credenciais incorretas.";
                 break;
             case 'auth/wrong-password':
@@ -2808,9 +2481,8 @@ async function handleLogout() {
 
     try {
         await firebase.auth().signOut();
-        // O handleAuthStateChange cuidará da limpeza da UI e redirecionamento.
-        sessionStorage.removeItem('welcomeAlertShown'); // Limpa o estado do alerta de boas-vindas
-        window.location.hash = ''; // Limpa a hash para evitar carregamento de seção incorreta
+        sessionStorage.removeItem('welcomeAlertShown');
+        window.location.hash = '';
         console.log("✅ Logout realizado com sucesso, aguardando AuthStateChange para redirecionar.");
     } catch (error) {
         console.error("❌ Erro ao fazer logout:", error);
@@ -2834,18 +2506,15 @@ async function handleNavigation(currentUser) {
         const defaultSection = getDefaultSection(currentUser.role);
         const targetSection = section || defaultSection;
 
-        // Garante que a UI básica do dashboard (sidebar, user info) esteja pronta
-        initializeUI(currentUser); // Pode ser redundante se já chamado, mas garante.
+        initializeUI(currentUser);
 
         await loadSectionContent(targetSection, currentUser);
         updateSidebarActiveState(targetSection);
     } else {
-        // Se o usuário está logado mas em uma página desconhecida, redireciona para o dashboard.
         console.log("🔄 Usuário logado em página desconhecida. Redirecionando para dashboard...");
         window.location.href = 'dashboard.html';
     }
 }
-
 
 function getDefaultSection(role) {
     switch (role) {
@@ -2863,7 +2532,6 @@ function handleLoggedOut() {
     localStorage.removeItem('elitecontrol_user_role');
     sessionStorage.removeItem('welcomeAlertShown');
 
-    // Limpa a UI do dashboard se estivermos nela
     if (document.getElementById('userInitials') && window.location.pathname.includes('dashboard.html')) {
         clearDashboardUI();
     }
@@ -2876,12 +2544,10 @@ function handleLoggedOut() {
         console.log("🔄 Redirecionando para página de login...");
         window.location.href = 'index.html';
     } else {
-        // Se já estiver na página de login, pode ser necessário limpar campos ou mostrar mensagens.
         const loginForm = document.getElementById('loginForm');
         if (loginForm) loginForm.reset();
     }
 }
-
 
 async function ensureTestDataExists() {
     try {
@@ -2928,12 +2594,12 @@ async function createTestUser(uid, email) {
         const testUserData = testUsers[email];
         if (testUserData) {
             await db.collection('users').doc(uid).set({
-                ...testUserData, // Espalha os dados do testUsers
-                uid: uid,       // Garante que o uid seja o do usuário autenticado
-                createdAt: firebase.firestore.FieldValue.serverTimestamp() // Adiciona timestamp de criação
-            }, { merge: true }); // Usa merge para não sobrescrever outros campos se já existirem
+                ...testUserData,
+                uid: uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
             console.log("✅ Usuário de teste criado/atualizado no Firestore:", testUserData.name);
-            return { uid: uid, ...testUserData }; // Retorna os dados com o uid correto
+            return { uid: uid, ...testUserData };
         }
         return null;
     } catch (error) {
@@ -2941,7 +2607,6 @@ async function createTestUser(uid, email) {
         return null;
     }
 }
-
 
 // === DASHBOARD E GRÁFICOS ===
 
@@ -2962,7 +2627,6 @@ async function loadDashboardData(currentUser) {
 
         let salesStats, topProductsData, recentSalesData, productStats, allProducts;
 
-        // Dados comuns a todos ou quase todos os perfis
         productStats = await DataService.getProductStats();
         allProducts = await DataService.getProducts();
 
@@ -2975,25 +2639,21 @@ async function loadDashboardData(currentUser) {
             console.log("✅ Dados do vendedor carregados:", { salesStats, topProductsData, recentSalesData });
 
             updateDashboardKPIs(salesStats, productStats, allProducts, currentUser);
-            renderVendorCharts(salesStats, topProductsData); // Passar topProductsData
+            renderVendorCharts(salesStats, topProductsData);
             updateRecentActivitiesUI(recentSalesData.slice(0, 5));
 
         } else if (currentUser.role === 'Controlador de Estoque') {
-            // Para o controlador de estoque, as estatísticas de vendas podem ser as gerais
-            // ou específicas se houver lógica para isso. Vamos usar as gerais por enquanto.
             const generalSales = await DataService.getSales();
-            salesStats = await DataService.getSalesStats(); // Estatísticas gerais de vendas
-            // Top produtos pode ser geral ou específico de movimentações de estoque (não implementado)
-            topProductsData = await DataService.getTopProducts(5); // Top produtos gerais
-            recentSalesData = generalSales; // Atividades recentes podem ser vendas gerais
+            salesStats = await DataService.getSalesStats();
+            topProductsData = await DataService.getTopProducts(5);
+            recentSalesData = generalSales;
 
             console.log("✅ Dados do controlador de estoque carregados:", { productStats, salesStats, topProductsData });
             updateDashboardKPIs(salesStats, productStats, allProducts, currentUser);
-            renderStockControllerCharts(productStats); // Gráficos específicos para estoque
+            renderStockControllerCharts(productStats);
             updateRecentActivitiesUI(recentSalesData.slice(0, 5));
 
-
-        } else { // Dono/Gerente
+        } else {
             const generalSales = await DataService.getSales();
             salesStats = await DataService.getSalesStats();
             topProductsData = await DataService.getTopProducts(5);
@@ -3183,7 +2843,7 @@ function setupChartEventListeners() {
                 showTemporaryAlert('Opções do gráfico de produtos', 'info')
             );
         }
-        // Adicionar listeners para outros botões de gráfico se necessário
+
         const vendorChartOptionsButton = document.getElementById('vendorChartOptionsButton');
         if (vendorChartOptionsButton) {
             vendorChartOptionsButton.addEventListener('click', () => showTemporaryAlert('Opções do gráfico de vendas do vendedor', 'info'));
@@ -3213,7 +2873,6 @@ function updateDashboardKPIs(salesStats, productStats, allProducts, currentUser)
         return;
     }
 
-
     const kpi1 = {
         title: kpiCards[0].querySelector('.kpi-title'),
         value: kpiCards[0].querySelector('.kpi-value')
@@ -3231,12 +2890,10 @@ function updateDashboardKPIs(salesStats, productStats, allProducts, currentUser)
         value: kpiCards[3].querySelector('.kpi-value')
     };
 
-    // Garantir que os elementos existem antes de tentar definir textContent ou innerHTML
     if (!kpi1.title || !kpi1.value || !kpi2.title || !kpi2.value || !kpi3.title || !kpi3.value || !kpi4.title || !kpi4.value) {
         console.error("Um ou mais elementos de KPI (título/valor) não foram encontrados.");
         return;
     }
-
 
     switch (currentUser.role) {
         case 'Vendedor':
@@ -3250,7 +2907,6 @@ function updateDashboardKPIs(salesStats, productStats, allProducts, currentUser)
             break;
         default:
             console.warn(`KPIs não definidos para o cargo: ${currentUser.role}`);
-            // Configurar KPIs padrão ou mensagem de erro
             kpi1.title.textContent = "Informação"; kpi1.value.textContent = "N/A";
             kpi2.title.textContent = "Informação"; kpi2.value.textContent = "N/A";
             kpi3.title.textContent = "Informação"; kpi3.value.textContent = "N/A";
@@ -3270,7 +2926,7 @@ function updateVendorKPIs(kpi1, kpi2, kpi3, kpi4, salesStats, allProducts) {
     kpi3.value.textContent = allProducts?.length || 0;
 
     kpi4.title.textContent = "Nova Venda";
-    if (!kpi4.value.querySelector('#newSaleButton')) { // Evitar duplicar botão
+    if (!kpi4.value.querySelector('#newSaleButton')) {
         kpi4.value.innerHTML = `<button class="btn-primary" id="newSaleButton">Registrar</button>`;
         setupKPIActionButton('newSaleButton', 'registrar-venda');
     }
@@ -3287,7 +2943,7 @@ function updateStockKPIs(kpi1, kpi2, kpi3, kpi4, productStats) {
     kpi3.value.textContent = productStats?.categories ? Object.keys(productStats.categories).length : 0;
 
     kpi4.title.textContent = "Adicionar Produto";
-    if (!kpi4.value.querySelector('#addProductFromKPIButton')) { // Evitar duplicar botão
+    if (!kpi4.value.querySelector('#addProductFromKPIButton')) {
         kpi4.value.innerHTML = `<button class="btn-primary" id="addProductFromKPIButton">Adicionar</button>`;
         setupKPIActionButton('addProductFromKPIButton', null, openProductModal);
     }
@@ -3304,14 +2960,14 @@ function updateManagerKPIs(kpi1, kpi2, kpi3, kpi4, salesStats, productStats) {
     kpi3.value.textContent = productStats?.totalProducts || 0;
 
     kpi4.title.textContent = "Ver Vendas";
-    if (!kpi4.value.querySelector('#viewReportsButton')) { // Evitar duplicar botão
+    if (!kpi4.value.querySelector('#viewReportsButton')) {
         kpi4.value.innerHTML = `<button class="btn-primary" id="viewReportsButton">Ver</button>`;
         setupKPIActionButton('viewReportsButton', 'vendas');
     }
 }
 
 function setupKPIActionButton(buttonId, targetSection, customAction = null) {
-    setTimeout(() => { // Adicionado timeout para garantir que o DOM esteja pronto
+    setTimeout(() => {
         const button = document.getElementById(buttonId);
         if (button) {
             button.addEventListener('click', () => {
@@ -3324,9 +2980,8 @@ function setupKPIActionButton(buttonId, targetSection, customAction = null) {
         } else {
             console.warn(`Botão de KPI com ID "${buttonId}" não encontrado.`);
         }
-    }, 0); // Timeout de 0ms é suficiente para enfileirar após o render atual.
+    }, 0);
 }
-
 
 function renderDashboardMainCharts(salesStats, topProductsData) {
     if (typeof Chart === 'undefined') {
@@ -3334,8 +2989,8 @@ function renderDashboardMainCharts(salesStats, topProductsData) {
         return;
     }
     console.log("📈 Renderizando gráficos principais (Dono/Gerente)");
-    renderSalesChart(salesStats); // Gráfico de Vendas por Período
-    renderProductsChart(topProductsData); // Gráfico de Produtos Mais Vendidos
+    renderSalesChart(salesStats);
+    renderProductsChart(topProductsData);
 }
 
 function renderVendorCharts(salesStats, topProductsData) {
@@ -3344,8 +2999,8 @@ function renderVendorCharts(salesStats, topProductsData) {
         return;
     }
     console.log("📈 Renderizando gráficos do vendedor");
-    renderVendorSalesChart(salesStats); // Gráfico de Vendas do Vendedor por Período
-    renderVendorProductsChart(topProductsData); // Gráfico de Produtos Mais Vendidos pelo Vendedor
+    renderVendorSalesChart(salesStats);
+    renderVendorProductsChart(topProductsData);
 }
 
 function renderStockControllerCharts(productStats) {
@@ -3400,7 +3055,6 @@ function renderStockControllerCharts(productStats) {
     }
 }
 
-
 // Opções padrão para gráficos Chart.js
 const chartDefaultOptions = (title) => ({
     responsive: true,
@@ -3411,19 +3065,18 @@ const chartDefaultOptions = (title) => ({
             labels: { color: 'rgba(241, 245, 249, 0.8)' }
         },
         title: {
-            display: false, // O título já está no card
+            display: false,
             text: title,
             color: 'rgba(241, 245, 249, 0.9)'
         }
     },
-    scales: { // Aplicável para bar, line, etc.
+    scales: {
         y: {
             beginAtZero: true,
             grid: { color: 'rgba(51, 65, 85, 0.3)' },
             ticks: {
                 color: 'rgba(241, 245, 249, 0.8)',
                 callback: function(value) {
-                    // Formatar como moeda se for um gráfico de receita
                     if (title && title.toLowerCase().includes('vendas') || title.toLowerCase().includes('receita')) {
                         return formatCurrency(value);
                     }
@@ -3438,7 +3091,6 @@ const chartDefaultOptions = (title) => ({
     }
 });
 
-// Função para gerar cores dinâmicas para gráficos
 function generateDynamicColors(count) {
     const colors = [];
     const baseColors = [
@@ -3451,7 +3103,6 @@ function generateDynamicColors(count) {
     }
     return colors;
 }
-
 
 function renderVendorSalesChart(salesStats) {
     const vendorCtx = document.getElementById('vendorSalesChart');
@@ -3509,7 +3160,6 @@ function renderVendorProductsChart(topProductsData) {
     });
 }
 
-
 function renderSalesChart(salesStats) {
     const salesCtx = document.getElementById('salesChart');
     if (!salesCtx || typeof Chart === 'undefined') return;
@@ -3517,8 +3167,7 @@ function renderSalesChart(salesStats) {
     if (window.salesChartInstance) {
         window.salesChartInstance.destroy();
     }
-    // Dados para gráfico de linha: Vendas diárias do último mês, por exemplo
-    // Isso requer que salesStats tenha dados diários. Por simplicidade, vamos usar os dados agregados.
+
     const labels = ['Hoje', 'Esta Semana', 'Este Mês'];
     const data = [
         salesStats?.todayRevenue || 0,
@@ -3526,9 +3175,8 @@ function renderSalesChart(salesStats) {
         salesStats?.monthRevenue || 0
     ];
 
-
     window.salesChartInstance = new Chart(salesCtx.getContext('2d'), {
-        type: 'line', // Mudado para 'line' para melhor visualização de tendência
+        type: 'line',
         data: {
             labels: labels,
             datasets: [{
@@ -3557,10 +3205,8 @@ function renderProductsChart(topProductsData) {
     }
 
     const hasData = topProductsData && topProductsData.length > 0;
-
     const labels = hasData ? topProductsData.map(p => p.name) : ['Sem dados'];
     const data = hasData ? topProductsData.map(p => p.count) : [1];
-
 
     window.productsChartInstance = new Chart(productsCtx.getContext('2d'), {
         type: 'doughnut',
@@ -3574,7 +3220,7 @@ function renderProductsChart(topProductsData) {
                 borderWidth: 1
             }]
         },
-        options: { // Opções específicas para doughnut
+        options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -3596,7 +3242,6 @@ function renderProductsChart(topProductsData) {
         }
     });
 }
-
 
 function updateRecentActivitiesUI(sales) {
     const activitiesContainer = document.getElementById('recentActivitiesContainer');
@@ -3804,7 +3449,7 @@ function initializeSidebar(role) {
                 { icon: 'fa-search', text: 'Consultar Produtos', section: 'produtos-consulta' },
                 { icon: 'fa-cash-register', text: 'Registrar Venda', section: 'registrar-venda' },
                 { icon: 'fa-history', text: 'Minhas Vendas', section: 'minhas-vendas' },
-                { icon: 'fa-users', text: 'Clientes', section: 'clientes' }, // Vendedores também podem ver clientes
+                { icon: 'fa-users', text: 'Clientes', section: 'clientes' },
                 { icon: 'fa-cogs', text: 'Configurações', section: 'config' }
             ];
             break;
@@ -3943,24 +3588,6 @@ function markAllNotificationsAsRead() {
     if (dropdown) dropdown.classList.add('hidden');
 }
 
-// === SEÇÃO DE USUÁRIOS ===
-
-function renderUsersSection(container) {
-    console.log("👥 Renderizando seção de usuários (em desenvolvimento)");
-
-    container.innerHTML = `
-        <div class="users-container">
-            <h2 class="text-xl font-semibold text-slate-100 mb-4">Gerenciamento de Usuários</h2>
-
-            <div class="text-center py-16 text-slate-400">
-                <i class="fas fa-users-cog fa-4x mb-4"></i>
-                <p class="text-lg">Seção em desenvolvimento</p>
-                <p class="text-sm mt-2">Em breve você poderá gerenciar usuários e permissões do sistema.</p>
-            </div>
-        </div>
-    `;
-}
-
 // === FUNÇÕES UTILITÁRIAS ===
 
 function showTemporaryAlert(message, type = 'info', duration = 4000) {
@@ -4074,12 +3701,11 @@ function formatDate(dateInput) {
 
     if (dateInput instanceof Date) {
         date = dateInput;
-    } else if (dateInput && typeof dateInput.toDate === 'function') { // Firebase Timestamp
+    } else if (dateInput && typeof dateInput.toDate === 'function') {
         date = dateInput.toDate();
     } else if (typeof dateInput === 'string' || typeof dateInput === 'number') {
         date = new Date(dateInput);
     } else {
-        // Se a entrada for inválida ou nula, retorna uma string indicativa
         return "Data inválida";
     }
 
@@ -4099,7 +3725,7 @@ function formatDateTime(dateInput) {
 
     if (dateInput instanceof Date) {
         date = dateInput;
-    } else if (dateInput && typeof dateInput.toDate === 'function') { // Firebase Timestamp
+    } else if (dateInput && typeof dateInput.toDate === 'function') {
         date = dateInput.toDate();
     } else if (typeof dateInput === 'string' || typeof dateInput === 'number') {
         date = new Date(dateInput);
@@ -4124,18 +3750,16 @@ function truncateText(text, maxLength) {
     return text.substring(0, maxLength) + '...';
 }
 
-
 async function reloadProductsIfNeeded() {
     const currentUser = firebase.auth().currentUser;
     if (currentUser) {
         const userRole = localStorage.getItem('elitecontrol_user_role');
         const currentSection = window.location.hash.substring(1);
-        // Define qual seção de produtos deve ser recarregada com base no perfil
         const productSectionForRole = (userRole === 'Vendedor' ? 'produtos-consulta' : 'produtos');
 
         if (currentSection === productSectionForRole || currentSection === 'produtos' || currentSection === 'produtos-consulta') {
             console.log(`Recarregando seção de produtos "${currentSection}" após modificação.`);
-            await loadSectionContent(currentSection, { // Recarrega a seção atual
+            await loadSectionContent(currentSection, {
                 uid: currentUser.uid,
                 email: currentUser.email,
                 role: userRole
@@ -4144,13 +3768,134 @@ async function reloadProductsIfNeeded() {
     }
 }
 
+function showSaleSuccessModal(sale) {
+    const total = sale.productsDetail.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+
+    const modalHtml = `
+        <div class="modal-backdrop show" id="saleSuccessModal">
+            <div class="modal-content show" style="max-width: 500px;">
+                <div class="modal-header">
+                    <i class="fas fa-check-circle text-green-500 text-2xl mr-3"></i>
+                    <h3 class="modal-title">Venda Realizada com Sucesso!</h3>
+                </div>
+
+                <div class="modal-body">
+                    <div class="success-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Total da Venda:</span>
+                            <span class="detail-value text-green-500 font-bold text-xl">${formatCurrency(total)}</span>
+                        </div>
+
+                        ${sale.customerName ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Cliente:</span>
+                                <span class="detail-value">${sale.customerName}</span>
+                            </div>
+                        ` : ''}
+
+                        <div class="detail-row">
+                            <span class="detail-label">Data:</span>
+                            <span class="detail-value">${formatDate(new Date())}</span>
+                        </div>
+
+                        <div class="detail-row">
+                            <span class="detail-label">Produtos:</span>
+                            <span class="detail-value">${sale.productsDetail.length} item(s)</span>
+                        </div>
+
+                        <div class="products-sold">
+                            <h4 class="text-sm font-semibold text-slate-300 mb-2">Itens Vendidos:</h4>
+                            <div class="sold-items">
+                                ${sale.productsDetail.map(item => `
+                                    <div class="sold-item">
+                                        <span>${item.name}</span>
+                                        <span>${item.quantity}x ${formatCurrency(item.unitPrice)}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-secondary" onclick="closeSaleSuccessModal(); window.print();">
+                        <i class="fas fa-print mr-2"></i>
+                        Imprimir
+                    </button>
+                    <button class="btn-primary" onclick="closeSaleSuccessModal()">
+                        <i class="fas fa-thumbs-up mr-2"></i>
+                        Perfeito!
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (!document.getElementById('saleSuccessStyles')) {
+        const style = document.createElement('style');
+        style.id = 'saleSuccessStyles';
+        style.textContent = `
+            .success-details {
+                background: rgba(16, 185, 129, 0.1);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                border-radius: 0.5rem;
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            .detail-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+            }
+
+            .detail-label {
+                color: #94A3B8;
+                font-size: 0.875rem;
+            }
+
+            .detail-value {
+                color: #F1F5F9;
+                font-weight: 500;
+            }
+
+            .products-sold {
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid rgba(51, 65, 85, 0.5);
+            }
+
+            .sold-item {
+                display: flex;
+                justify-content: space-between;
+                padding: 0.25rem 0;
+                font-size: 0.875rem;
+                color: #94A3B8;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+// === FUNÇÕES GLOBAIS ===
+window.toggleProductSelection = toggleProductSelection;
+window.changeQuantity = changeQuantity;
+window.updateQuantity = updateQuantity;
+window.removeCartItem = removeCartItem;
+window.closeSaleSuccessModal = closeSaleSuccessModal;
+window.handleEditProduct = handleEditProduct;
+window.handleDeleteProductConfirmation = handleDeleteProductConfirmation;
+window.openProductModal = openProductModal;
+window.selectCustomer = selectCustomer;
+window.saveNewCustomer = saveNewCustomer;
 
 // Log de inicialização
 console.log("✅ EliteControl v2.0 com IA e CRM carregado com sucesso!");
 console.log("🚀 Novos recursos disponíveis:");
 console.log("   - Sistema CRM com gestão de clientes");
-console.log("   - Geração de promoções com IA");
-console.log("   - Análise de preferências de clientes");
 console.log("   - Pesquisa avançada de produtos");
 console.log("   - Dashboard personalizado por perfil");
 console.log("   - Integração de vendas com clientes");
+console.log("   - Interface responsiva e moderna");
