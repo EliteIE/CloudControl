@@ -53,6 +53,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeModalElements() {
+    console.log("🔧 Inicializando elementos do modal de produto");
+    
     productModal = document.getElementById('productModal');
     productForm = document.getElementById('productForm');
     productModalTitle = document.getElementById('productModalTitle');
@@ -65,6 +67,29 @@ function initializeModalElements() {
     closeProductModalButton = document.getElementById('closeProductModalButton');
     cancelProductFormButton = document.getElementById('cancelProductFormButton');
     saveProductButton = document.getElementById('saveProductButton');
+    
+    // Log dos elementos encontrados para debug
+    console.log("Modal elements status:", {
+        productModal: !!productModal,
+        productForm: !!productForm,
+        productModalTitle: !!productModalTitle,
+        productIdField: !!productIdField,
+        productNameField: !!productNameField,
+        productCategoryField: !!productCategoryField,
+        productPriceField: !!productPriceField,
+        productStockField: !!productStockField,
+        productLowStockAlertField: !!productLowStockAlertField,
+        closeProductModalButton: !!closeProductModalButton,
+        cancelProductFormButton: !!cancelProductFormButton,
+        saveProductButton: !!saveProductButton
+    });
+    
+    if (!productModal) {
+        console.error("❌ Modal de produto não encontrado no DOM. Certifique-se de que está na página correta.");
+        return false;
+    }
+    
+    return true;
 }
 
 // === FUNÇÕES DE MODAL DE PRODUTOS ===
@@ -138,12 +163,16 @@ function handleModalClose() {
 }
 
 function openProductModal(product = null) {
-    if (!productModal) initializeModalElements();
-
+    console.log("📝 Abrindo modal de produto:", product ? 'Editar' : 'Novo');
+    
+    // Inicializar elementos se necessário
     if (!productModal) {
-        console.error("❌ Modal de produto não encontrado mesmo após tentativa de inicialização.");
-        showTemporaryAlert("Erro: Componente modal de produto não encontrado na página.", "error");
-        return;
+        console.log("Modal não inicializado, tentando inicializar...");
+        const success = initializeModalElements();
+        if (!success) {
+            showTemporaryAlert("Erro: Modal de produto não disponível nesta página.", "error");
+            return;
+        }
     }
 
     if (isModalProcessing) {
@@ -151,11 +180,19 @@ function openProductModal(product = null) {
         return;
     }
 
-    console.log("📝 Abrindo modal de produto:", product ? 'Editar' : 'Novo');
+    // Configurar event listeners se necessário
+    if (!modalEventListenersAttached) {
+        console.log("Configurando event listeners do modal...");
+        setupModalEventListeners();
+    }
 
-    if (productForm) productForm.reset();
+    // Resetar formulário
+    if (productForm) {
+        productForm.reset();
+    }
 
     if (product) {
+        // Modo edição
         if (productModalTitle) productModalTitle.textContent = 'Editar Produto';
         if (productIdField) productIdField.value = product.id;
         if (productNameField) productNameField.value = product.name;
@@ -163,17 +200,36 @@ function openProductModal(product = null) {
         if (productPriceField) productPriceField.value = product.price;
         if (productStockField) productStockField.value = product.stock;
         if (productLowStockAlertField) productLowStockAlertField.value = product.lowStockAlert || 10;
+        
+        console.log("Produto carregado para edição:", {
+            id: product.id,
+            name: product.name,
+            category: product.category,
+            price: product.price,
+            stock: product.stock,
+            lowStockAlert: product.lowStockAlert
+        });
     } else {
+        // Modo criação
         if (productModalTitle) productModalTitle.textContent = 'Adicionar Novo Produto';
         if (productIdField) productIdField.value = '';
         if (productLowStockAlertField) productLowStockAlertField.value = 10;
+        
+        console.log("Modal configurado para novo produto");
     }
 
+    // Mostrar modal
     productModal.classList.remove('hidden');
-
+    
+    // Focar no primeiro campo
     if (productNameField) {
-        setTimeout(() => productNameField.focus(), 100);
+        setTimeout(() => {
+            productNameField.focus();
+            console.log("Foco aplicado no campo nome");
+        }, 100);
     }
+    
+    console.log("✅ Modal aberto com sucesso");
 }
 
 async function handleProductFormSubmit(event) {
@@ -400,17 +456,21 @@ function renderProductRow(product, canEdit) {
             </td>
             ${canEdit ? `
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="edit-product-btn text-sky-400 hover:text-sky-300 mr-2" 
-                            data-product-id="${product.id}">
-                        <i class="fas fa-edit mr-1"></i>
-                        Editar
-                    </button>
-                    <button class="delete-product-btn text-red-500 hover:text-red-400" 
-                            data-product-id="${product.id}" 
-                            data-product-name="${product.name}">
-                        <i class="fas fa-trash mr-1"></i>
-                        Excluir
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button class="product-action-btn product-edit-btn edit-product-btn" 
+                                data-product-id="${product.id}"
+                                title="Editar produto">
+                            <i class="fas fa-edit"></i>
+                            <span>Editar</span>
+                        </button>
+                        <button class="product-action-btn product-delete-btn delete-product-btn" 
+                                data-product-id="${product.id}" 
+                                data-product-name="${product.name}"
+                                title="Excluir produto">
+                            <i class="fas fa-trash"></i>
+                            <span>Excluir</span>
+                        </button>
+                    </div>
                 </td>
             ` : ''}
         </tr>
@@ -2222,19 +2282,25 @@ function setupEventListeners() {
 
     setupFormListeners();
     setupNavigationListeners();
-
-    if (productModal && !modalEventListenersAttached) {
-        if (typeof setupModalEventListeners === 'function') {
-            setupModalEventListeners();
-        } else {
-            console.error("CRITICAL: A função setupModalEventListeners não está definida globalmente quando setupEventListeners é chamada.");
-        }
-    } else if (!productModal && window.location.pathname.includes('dashboard.html')) {
-        console.warn("⚠️ productModal não encontrado no dashboard.html. Listeners do modal não serão anexados.");
-    }
-
     setupDropdownListeners();
+    
+    // Configurar listeners de produtos (sempre, pois usa delegação de eventos)
     setupProductActionListeners();
+
+    // Configurar listeners do modal de produtos se estiver no dashboard
+    if (window.location.pathname.includes('dashboard.html')) {
+        // Tentar configurar modal se existir
+        if (document.getElementById('productModal') && !modalEventListenersAttached) {
+            if (typeof setupModalEventListeners === 'function') {
+                console.log("🔧 Configurando listeners do modal de produto");
+                setupModalEventListeners();
+            } else {
+                console.error("❌ Função setupModalEventListeners não está definida");
+            }
+        }
+    }
+    
+    console.log("✅ Event listeners gerais configurados");
 }
 
 function setupFormListeners() {
@@ -2307,6 +2373,8 @@ function setupDropdownListeners() {
 
 function setupProductActionListeners() {
     // Usar delegação de eventos para capturar cliques em botões criados dinamicamente
+    console.log("🔧 Configurando listeners de produtos com delegação de eventos");
+    
     document.addEventListener('click', function(e) {
         // Botão de adicionar produto
         if (e.target.closest('#openAddProductModalButton')) {
@@ -2315,11 +2383,13 @@ function setupProductActionListeners() {
             
             // Garantir que os elementos do modal estão inicializados
             if (!productModal) {
+                console.log("Modal não inicializado, inicializando...");
                 initializeModalElements();
             }
             
             // Configurar event listeners do modal se necessário
             if (!modalEventListenersAttached && productModal) {
+                console.log("Configurando listeners do modal...");
                 setupModalEventListeners();
             }
             
@@ -2333,18 +2403,24 @@ function setupProductActionListeners() {
             e.preventDefault();
             console.log("✏️ Botão editar produto clicado");
             const productId = editButton.dataset.productId;
+            console.log("Product ID:", productId);
+            
             if (productId) {
                 // Garantir que os elementos do modal estão inicializados
                 if (!productModal) {
+                    console.log("Modal não inicializado para edição, inicializando...");
                     initializeModalElements();
                 }
                 
                 // Configurar event listeners do modal se necessário
                 if (!modalEventListenersAttached && productModal) {
+                    console.log("Configurando listeners do modal para edição...");
                     setupModalEventListeners();
                 }
                 
                 handleEditProduct(productId);
+            } else {
+                console.error("Product ID não encontrado no botão de editar");
             }
             return;
         }
@@ -2356,8 +2432,12 @@ function setupProductActionListeners() {
             console.log("🗑️ Botão excluir produto clicado");
             const productId = deleteButton.dataset.productId;
             const productName = deleteButton.dataset.productName;
+            console.log("Product ID:", productId, "Product Name:", productName);
+            
             if (productId && productName) {
                 handleDeleteProductConfirmation(productId, productName);
+            } else {
+                console.error("Product ID ou Name não encontrado no botão de excluir");
             }
             return;
         }
@@ -2392,13 +2472,25 @@ function handleHashChange() {
 }
 
 async function handleEditProduct(productId) {
-    console.log("✏️ Editando produto:", productId);
+    console.log("✏️ Editando produto com ID:", productId);
+
+    if (!productId) {
+        console.error("❌ ID do produto não fornecido");
+        showTemporaryAlert('Erro: ID do produto não encontrado.', 'error');
+        return;
+    }
 
     try {
+        // Mostrar loading
+        showTemporaryAlert('Carregando dados do produto...', 'info', 2000);
+        
         const product = await DataService.getProductById(productId);
+        
         if (product) {
+            console.log("✅ Produto encontrado:", product);
             openProductModal(product);
         } else {
+            console.error("❌ Produto não encontrado:", productId);
             showTemporaryAlert('Produto não encontrado.', 'error');
         }
     } catch (error) {
