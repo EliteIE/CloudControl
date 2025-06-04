@@ -1516,6 +1516,24 @@ async function loadDashboardData(container) {
         // Atualizar KPIs
         updateDashboardKPIs(salesStats, productStats, currentUser);
         
+        // --- NOVO: Lógica do botão de olho ---
+        let revenueVisible = true;
+        const toggleBtn = document.getElementById('toggleRevenueVisibility');
+        const revenueValue = document.getElementById('revenueValue');
+        if (toggleBtn && revenueValue) {
+            toggleBtn.addEventListener('click', () => {
+                revenueVisible = !revenueVisible;
+                if (revenueVisible) {
+                    revenueValue.textContent = revenueValue.dataset.realValue;
+                    toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                } else {
+                    revenueValue.textContent = '••••••';
+                    toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+                }
+            });
+        }
+        // --- FIM NOVO ---
+
         // Renderizar gráficos
         renderDashboardCharts(salesStats, topProducts, productStats, currentUser.role);
         
@@ -1564,8 +1582,15 @@ function getKPICards(userRole) {
                 <i class="fas fa-dollar-sign kpi-icon"></i>
             </div>
             <div class="kpi-content">
-                <div class="kpi-title">Receita ${userRole === 'Vendedor' ? 'Minhas Vendas' : 'Total'}</div>
-                <div class="kpi-value" id="kpiRevenue">R$ 0,00</div>
+                <div class="kpi-title">
+                    Receita ${userRole === 'Vendedor' ? 'Minhas Vendas' : 'Total'}
+                    <button id="toggleRevenueVisibility" class="ml-2" style="background:none;border:none;cursor:pointer;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div class="kpi-value">
+                    <span id="revenueValue">R$ 0,00</span>
+                </div>
             </div>
         </div>
         <div class="kpi-card">
@@ -1603,11 +1628,11 @@ function getKPICards(userRole) {
 function getQuickActionButton(userRole) {
     switch (userRole) {
         case 'Vendedor':
-            return `<button class="btn-primary btn-sm" onclick="window.location.hash='#registrar-venda'">Nova Venda</button>`;
+            return `<button id="quickActionBtn" class="btn-primary btn-sm" onclick="window.location.hash='#registrar-venda'">Nova Venda</button>`;
         case 'Controlador de Estoque':
-            return `<button class="btn-primary btn-sm" onclick="openProductModal()">Novo Produto</button>`;
+            return `<button id="quickActionBtn" class="btn-primary btn-sm" onclick="openProductModal()">Novo Produto</button>`;
         case 'Dono/Gerente':
-            return `<button class="btn-primary btn-sm" onclick="window.location.hash='#vendas'">Ver Relatórios</button>`;
+            return `<button id="quickActionBtn" class="btn-primary btn-sm" onclick="window.location.hash='#vendas'">Ver Relatórios</button>`;
         default:
             return `<button class="btn-secondary btn-sm" disabled>N/A</button>`;
     }
@@ -1685,6 +1710,7 @@ function updateDashboardKPIs(salesStats, productStats, currentUser) {
     const revenueEl = document.getElementById('kpiRevenue');
     if (revenueEl) {
         revenueEl.textContent = formatCurrency(salesStats?.monthRevenue || 0);
+        revenueEl.dataset.realValue = formatCurrency(salesStats?.monthRevenue || 0);
     }
 
     // Vendas
