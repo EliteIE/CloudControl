@@ -18,40 +18,90 @@
             align-items: center;
             justify-content: center;
             padding: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animação de fundo */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
         }
 
         .login-container {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(20px);
             border: 1px solid rgba(51, 65, 85, 0.5);
-            border-radius: 1rem;
-            padding: 2rem;
+            border-radius: 1.5rem;
+            padding: 2.5rem;
             width: 100%;
-            max-width: 400px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            max-width: 420px;
+            box-shadow: 
+                0 20px 25px -5px rgba(0, 0, 0, 0.3),
+                0 10px 10px -5px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 1;
+            animation: slideIn 0.8s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: 2.5rem;
         }
 
         .login-logo {
-            width: 64px;
-            height: 64px;
+            width: 80px;
+            height: 80px;
             background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
-            border-radius: 1rem;
+            border-radius: 1.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 1rem;
+            margin: 0 auto 1.5rem;
             color: white;
-            font-size: 1.5rem;
+            font-size: 2rem;
             font-weight: bold;
+            box-shadow: 0 8px 16px rgba(56, 189, 248, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 8px 16px rgba(56, 189, 248, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 12px 24px rgba(56, 189, 248, 0.4);
+            }
         }
 
         .login-title {
-            font-size: 1.875rem;
+            font-size: 2.25rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
             background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
@@ -62,40 +112,51 @@
 
         .login-subtitle {
             color: #94A3B8;
-            margin-bottom: 2rem;
+            margin-bottom: 2.5rem;
+            font-weight: 500;
         }
 
         .form-group {
             margin-bottom: 1.5rem;
+            position: relative;
         }
 
         .form-label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             font-size: 0.875rem;
-            font-weight: 500;
+            font-weight: 600;
             color: #F1F5F9;
+            transition: color 0.3s ease;
         }
 
         .form-input, .form-select {
             width: 100%;
             background-color: rgba(51, 65, 85, 0.8);
-            border: 1px solid rgba(71, 85, 105, 0.5);
-            border-radius: 0.5rem;
-            padding: 0.75rem 1rem;
+            border: 2px solid rgba(71, 85, 105, 0.5);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
             color: #F1F5F9;
             transition: all 0.3s ease;
             backdrop-filter: blur(5px);
+            font-size: 1rem;
         }
 
         .form-input:focus, .form-select:focus {
             outline: none;
             border-color: #38BDF8;
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+            background-color: rgba(51, 65, 85, 0.9);
+            transform: translateY(-2px);
         }
 
         .form-input::placeholder {
             color: #94A3B8;
+        }
+
+        .form-select option {
+            background-color: #1E293B;
+            color: #F1F5F9;
         }
 
         .btn-primary {
@@ -103,18 +164,39 @@
             background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
             color: white;
             font-weight: 600;
-            padding: 0.75rem 1.5rem;
+            padding: 1rem 1.5rem;
             border: none;
-            border-radius: 0.5rem;
+            border-radius: 0.75rem;
             cursor: pointer;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(-1px);
         }
 
         .btn-primary:disabled {
@@ -127,24 +209,35 @@
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid rgba(239, 68, 68, 0.3);
             color: #FCA5A5;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
             margin-bottom: 1rem;
             font-size: 0.875rem;
+            text-align: center;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
 
         .login-help {
             background: rgba(56, 189, 248, 0.1);
             border: 1px solid rgba(56, 189, 248, 0.3);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-top: 2rem;
         }
 
-        .login-help p {
-            color: #94A3B8;
+        .login-help h4 {
+            color: #38BDF8;
+            margin-bottom: 1rem;
+            font-weight: 600;
             font-size: 0.875rem;
-            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .login-help ul {
@@ -155,28 +248,87 @@
 
         .login-help li {
             color: #F1F5F9;
-            font-size: 0.8rem;
-            margin-bottom: 0.25rem;
-            padding-left: 1rem;
-            position: relative;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 0.5rem;
+            border-left: 3px solid #38BDF8;
+            transition: transform 0.2s ease;
         }
 
-        .login-help li::before {
-            content: "•";
+        .login-help li:hover {
+            transform: translateX(5px);
+        }
+
+        .login-help li strong {
             color: #38BDF8;
-            position: absolute;
-            left: 0;
+            font-weight: 600;
         }
 
         .login-footer {
             text-align: center;
-            margin-top: 2rem;
+            margin-top: 2.5rem;
             color: #94A3B8;
             font-size: 0.875rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(51, 65, 85, 0.5);
         }
 
         .hidden {
             display: none !important;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsividade */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 2rem;
+                margin: 1rem;
+                border-radius: 1rem;
+            }
+
+            .login-logo {
+                width: 70px;
+                height: 70px;
+                font-size: 1.75rem;
+            }
+
+            .login-title {
+                font-size: 2rem;
+            }
+
+            .form-input, .form-select, .btn-primary {
+                padding: 0.875rem 1rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .login-container {
+                padding: 1.5rem;
+            }
+
+            .login-title {
+                font-size: 1.75rem;
+            }
         }
     </style>
 </head>
@@ -187,48 +339,85 @@
                 <i class="fas fa-chart-line"></i>
             </div>
             <h1 class="login-title">EliteControl</h1>
-            <p class="login-subtitle">Seu sistema de gestão inteligente</p>
+            <p class="login-subtitle">Sistema de gestão inteligente com IA</p>
         </div>
         
         <form id="loginForm" class="login-form">
             <div class="form-group">
-                <label for="perfil" class="form-label">Setor / Cargo</label>
+                <label for="perfil" class="form-label">
+                    <i class="fas fa-user-tie mr-2"></i>
+                    Setor / Cargo
+                </label>
                 <select id="perfil" name="perfil" class="form-select" required>
                     <option value="">Selecione seu perfil</option>
-                    <option value="Dono/Gerente">Dono/Gerente</option>
-                    <option value="Controlador de Estoque">Controlador de Estoque</option>
-                    <option value="Vendedor">Vendedor</option>
+                    <option value="Dono/Gerente">👑 Dono/Gerente</option>
+                    <option value="Controlador de Estoque">📦 Controlador de Estoque</option>
+                    <option value="Vendedor">💰 Vendedor</option>
                 </select>
             </div>
             
             <div class="form-group">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" id="email" name="email" class="form-input" placeholder="Seu email" required>
+                <label for="email" class="form-label">
+                    <i class="fas fa-envelope mr-2"></i>
+                    Email
+                </label>
+                <input type="email" 
+                       id="email" 
+                       name="email" 
+                       class="form-input" 
+                       placeholder="seu@email.com" 
+                       required>
             </div>
             
             <div class="form-group">
-                <label for="password" class="form-label">Senha</label>
-                <input type="password" id="password" name="password" class="form-input" placeholder="Sua senha" required>
+                <label for="password" class="form-label">
+                    <i class="fas fa-lock mr-2"></i>
+                    Senha
+                </label>
+                <input type="password" 
+                       id="password" 
+                       name="password" 
+                       class="form-input" 
+                       placeholder="••••••••" 
+                       required>
             </div>
             
             <div id="loginErrorMessage" class="login-error hidden"></div>
             
-            <div class="form-group">
-                <button type="submit" class="btn-primary">Entrar</button>
-            </div>
+            <button type="submit" class="btn-primary" id="loginButton">
+                <span id="loginButtonText">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    Entrar no Sistema
+                </span>
+            </button>
             
             <div class="login-help">
-                <p>Credenciais para teste:</p>
+                <h4><i class="fas fa-info-circle mr-2"></i>Credenciais para Teste</h4>
                 <ul>
-                    <li><strong>Dono/Gerente:</strong> admin@elitecontrol.com / admin123</li>
-                    <li><strong>Estoque:</strong> estoque@elitecontrol.com / estoque123</li>
-                    <li><strong>Vendedor:</strong> vendas@elitecontrol.com / vendas123</li>
+                    <li>
+                        <strong>Dono/Gerente:</strong><br>
+                        admin@elitecontrol.com / admin123
+                    </li>
+                    <li>
+                        <strong>Controlador de Estoque:</strong><br>
+                        estoque@elitecontrol.com / estoque123
+                    </li>
+                    <li>
+                        <strong>Vendedor:</strong><br>
+                        vendas@elitecontrol.com / vendas123
+                    </li>
                 </ul>
             </div>
         </form>
         
         <div class="login-footer">
-            &copy; 2025 EliteControl. Todos os direitos reservados.
+            <p>
+                <i class="fas fa-shield-alt mr-2"></i>
+                &copy; 2025 EliteControl v2.0. Todos os direitos reservados.
+            </p>
+            <p style="margin-top: 0.5rem; font-size: 0.75rem;">
+                Sistema desenvolvido com Firebase & IA
+            </p>
         </div>
     </div>
     
@@ -241,5 +430,63 @@
     <script src="js/firebase-config.js"></script>
     <script src="js/firebase-service.js"></script> 
     <script src="js/main.js"></script>
+
+    <script>
+        // Melhorias específicas para a página de login
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            const loginButton = document.getElementById('loginButton');
+            const loginButtonText = document.getElementById('loginButtonText');
+            
+            // Animação nos campos de input
+            const inputs = document.querySelectorAll('.form-input, .form-select');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.querySelector('.form-label').style.color = '#38BDF8';
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.parentElement.querySelector('.form-label').style.color = '#F1F5F9';
+                });
+            });
+            
+            // Preenchimento automático para demo
+            const perfil = document.getElementById('perfil');
+            const email = document.getElementById('email');
+            const password = document.getElementById('password');
+            
+            perfil.addEventListener('change', function() {
+                const selectedValue = this.value;
+                switch(selectedValue) {
+                    case 'Dono/Gerente':
+                        email.value = 'admin@elitecontrol.com';
+                        password.value = 'admin123';
+                        break;
+                    case 'Controlador de Estoque':
+                        email.value = 'estoque@elitecontrol.com';
+                        password.value = 'estoque123';
+                        break;
+                    case 'Vendedor':
+                        email.value = 'vendas@elitecontrol.com';
+                        password.value = 'vendas123';
+                        break;
+                    default:
+                        email.value = '';
+                        password.value = '';
+                }
+            });
+            
+            // Feedback visual para o botão de login
+            if (loginForm) {
+                loginForm.addEventListener('submit', function() {
+                    loginButton.disabled = true;
+                    loginButtonText.innerHTML = `
+                        <span class="loading-spinner"></span>
+                        Entrando...
+                    `;
+                });
+            }
+        });
+    </script>
 </body>
 </html>
