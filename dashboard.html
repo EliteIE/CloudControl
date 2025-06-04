@@ -9,23 +9,75 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#0F172A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EliteControl">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzM4QkRGOCIvPgo8cGF0aCBkPSJNOCAxMkwxNiA4TDI0IDEyVjIwTDE2IDI0TDggMjBWMTJaIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIGZpbGw9Im5vbmUiLz4KPC9zdmc+">
 </head>
 <body class="bg-slate-900 text-slate-300 min-h-screen">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="loading-text">
+                <h2>EliteControl</h2>
+                <p>Carregando sistema...</p>
+            </div>
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
     <header class="header">
         <div class="header-content">
+            <!-- Mobile Menu Toggle -->
+            <button id="mobileMenuToggle" class="mobile-menu-toggle md:hidden">
+                <i class="fas fa-bars"></i>
+            </button>
+
             <div class="header-logo">
-                <div class="w-8 h-8 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-lg flex items-center justify-center text-white font-bold">
+                <div class="header-logo-icon">
                     <i class="fas fa-chart-line"></i>
                 </div>
                 <span class="header-logo-text">EliteControl</span>
+                <span class="header-version">v2.0</span>
             </div>
             
             <div class="header-actions">
-                <!-- Notificações -->
+                <!-- Search -->
+                <div class="header-search hidden md:block">
+                    <div class="search-container">
+                        <input type="text" 
+                               id="globalSearch" 
+                               class="search-input" 
+                               placeholder="Buscar...">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="quick-actions hidden md:flex">
+                    <button id="quickSaleButton" class="quick-action-btn" title="Nova Venda">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button id="quickProductButton" class="quick-action-btn" title="Novo Produto">
+                        <i class="fas fa-box"></i>
+                    </button>
+                </div>
+
+                <!-- Notifications -->
                 <div class="relative">
-                    <button id="notificationBellButton" class="p-3 rounded-full hover:bg-slate-800 relative transition-colors">
-                        <i class="fas fa-bell text-slate-300"></i>
+                    <button id="notificationBellButton" class="notification-button">
+                        <i class="fas fa-bell"></i>
                         <span id="notificationCountBadge" class="notification-badge hidden">0</span>
                     </button>
                     
@@ -42,17 +94,17 @@
                     </div>
                 </div>
                 
-                <!-- Menu do usuário -->
+                <!-- User Menu -->
                 <div class="user-menu">
                     <button id="userMenuButton" class="user-button">
                         <div id="userAvatar" class="user-avatar">
                             <span id="userInitials">U</span>
                         </div>
-                        <div class="user-info hidden md:block">
+                        <div class="user-info hidden lg:block">
                             <div id="usernameDisplay" class="user-name">Usuário</div>
                             <div id="userRoleDisplay" class="user-role">Cargo</div>
                         </div>
-                        <i class="fas fa-chevron-down text-slate-400 ml-2 hidden md:block"></i>
+                        <i class="fas fa-chevron-down user-chevron hidden lg:block"></i>
                     </button>
                     
                     <div id="userDropdown" class="user-dropdown hidden">
@@ -65,13 +117,17 @@
                         </div>
                         
                         <ul class="user-dropdown-menu">
-                            <li class="user-dropdown-item">
+                            <li class="user-dropdown-item" onclick="showUserProfile()">
                                 <i class="fas fa-user user-dropdown-item-icon"></i>
                                 <span>Meu Perfil</span>
                             </li>
-                            <li class="user-dropdown-item">
+                            <li class="user-dropdown-item" onclick="showSettings()">
                                 <i class="fas fa-cog user-dropdown-item-icon"></i>
                                 <span>Configurações</span>
+                            </li>
+                            <li class="user-dropdown-item" onclick="showHelp()">
+                                <i class="fas fa-question-circle user-dropdown-item-icon"></i>
+                                <span>Ajuda</span>
                             </li>
                             <div class="user-dropdown-divider"></div>
                             <li id="logoutButton" class="user-dropdown-item user-dropdown-item-logout">
@@ -87,28 +143,73 @@
     
     <!-- Sidebar -->
     <aside id="sidebar" class="sidebar scrollbar-thin">
-        <div class="sidebar-header">
-            <div id="sidebarProfileName" class="sidebar-title">Painel</div>
-        </div>
+        <!-- Mobile Overlay -->
+        <div id="sidebarOverlay" class="sidebar-overlay md:hidden"></div>
         
-        <nav id="navLinks" class="nav-section">
-            <!-- Links de navegação serão inseridos dinamicamente -->
-        </nav>
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <div id="sidebarProfileName" class="sidebar-title">Painel</div>
+                <button id="sidebarCloseButton" class="sidebar-close md:hidden">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Navigation -->
+            <nav id="navLinks" class="nav-section">
+                <!-- Links de navegação serão inseridos dinamicamente -->
+            </nav>
+
+            <!-- Sidebar Stats -->
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-label">Online</div>
+                        <div id="onlineTime" class="stat-value">--:--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <div class="sidebar-version">
+                    <i class="fas fa-code-branch"></i>
+                    EliteControl v2.0
+                </div>
+            </div>
+        </div>
     </aside>
     
     <!-- Main Content -->
     <main id="mainContent" class="main-content">
+        <!-- Page Header -->
         <div class="page-header">
-            <h1 id="pageTitle" class="page-title">Painel</h1>
-            <p id="pageSubtitle" class="page-subtitle">Sua visão personalizada do sistema.</p>
+            <div class="page-header-content">
+                <div class="page-header-left">
+                    <h1 id="pageTitle" class="page-title">Painel</h1>
+                    <p id="pageSubtitle" class="page-subtitle">Sua visão personalizada do sistema.</p>
+                </div>
+                <div class="page-header-right">
+                    <div class="page-header-time">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span id="currentDate">--</span>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <!-- Área de conteúdo dinâmico -->
-        <div id="dynamicContentArea">
+        <!-- Dynamic Content Area -->
+        <div id="dynamicContentArea" class="dynamic-content">
             <!-- Loading inicial -->
-            <div class="p-8 text-center text-slate-400">
-                <i class="fas fa-spinner fa-spin fa-2x mb-4"></i>
-                <p>Carregando dashboard...</p>
+            <div class="content-loading">
+                <div class="loading-spinner-container">
+                    <div class="loading-spinner-large">
+                        <div class="spinner-large"></div>
+                    </div>
+                    <p>Carregando dashboard...</p>
+                </div>
             </div>
         </div>
     </main>
@@ -118,63 +219,83 @@
     
     <!-- Modal de Produto -->
     <div id="productModal" class="modal-backdrop hidden">
-        <div class="modal-content">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
-                <h3 id="productModalTitle" class="modal-title">Adicionar Produto</h3>
+                <h3 id="productModalTitle" class="modal-title">
+                    <i class="fas fa-box mr-2"></i>
+                    Adicionar Produto
+                </h3>
                 <button id="closeProductModalButton" class="modal-close">
-                    &times;
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
             
             <form id="productForm" class="modal-body">
                 <input type="hidden" id="productId">
                 
-                <div class="form-group">
-                    <label for="productName" class="form-label">Nome do Produto *</label>
-                    <input type="text" 
-                           id="productName" 
-                           name="productName" 
-                           class="form-input" 
-                           placeholder="Ex: Notebook Dell Inspiron"
-                           required>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="productName" class="form-label">
+                            <i class="fas fa-tag mr-1"></i>
+                            Nome do Produto *
+                        </label>
+                        <input type="text" 
+                               id="productName" 
+                               name="productName" 
+                               class="form-input" 
+                               placeholder="Ex: Notebook Dell Inspiron"
+                               required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productCategory" class="form-label">
+                            <i class="fas fa-folder mr-1"></i>
+                            Categoria *
+                        </label>
+                        <input type="text" 
+                               id="productCategory" 
+                               name="productCategory" 
+                               class="form-input" 
+                               placeholder="Ex: Eletrônicos"
+                               required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productPrice" class="form-label">
+                            <i class="fas fa-dollar-sign mr-1"></i>
+                            Preço (R$) *
+                        </label>
+                        <input type="number" 
+                               id="productPrice" 
+                               name="productPrice" 
+                               class="form-input" 
+                               placeholder="0.00"
+                               step="0.01" 
+                               min="0" 
+                               required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productStock" class="form-label">
+                            <i class="fas fa-cubes mr-1"></i>
+                            Estoque *
+                        </label>
+                        <input type="number" 
+                               id="productStock" 
+                               name="productStock" 
+                               class="form-input" 
+                               placeholder="0"
+                               step="1" 
+                               min="0" 
+                               required>
+                    </div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="productCategory" class="form-label">Categoria *</label>
-                    <input type="text" 
-                           id="productCategory" 
-                           name="productCategory" 
-                           class="form-input" 
-                           placeholder="Ex: Eletrônicos"
-                           required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="productPrice" class="form-label">Preço (R$) *</label>
-                    <input type="number" 
-                           id="productPrice" 
-                           name="productPrice" 
-                           class="form-input" 
-                           placeholder="0.00"
-                           step="0.01" 
-                           min="0" 
-                           required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="productStock" class="form-label">Estoque *</label>
-                    <input type="number" 
-                           id="productStock" 
-                           name="productStock" 
-                           class="form-input" 
-                           placeholder="0"
-                           step="1" 
-                           min="0" 
-                           required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="productLowStockAlert" class="form-label">Alerta de Estoque Baixo *</label>
+                    <label for="productLowStockAlert" class="form-label">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        Alerta de Estoque Baixo *
+                    </label>
                     <input type="number" 
                            id="productLowStockAlert" 
                            name="productLowStockAlert" 
@@ -183,14 +304,27 @@
                            step="1" 
                            min="1" 
                            required>
-                    <small class="text-slate-400 text-xs mt-1 block">
+                    <small class="form-help">
                         Você será alertado quando o estoque ficar abaixo deste valor
                     </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="productDescription" class="form-label">
+                        <i class="fas fa-align-left mr-1"></i>
+                        Descrição (Opcional)
+                    </label>
+                    <textarea id="productDescription" 
+                              name="productDescription" 
+                              class="form-input" 
+                              rows="3"
+                              placeholder="Descrição detalhada do produto..."></textarea>
                 </div>
             </form>
             
             <div class="modal-footer">
                 <button id="cancelProductFormButton" class="btn-secondary">
+                    <i class="fas fa-times mr-2"></i>
                     Cancelar
                 </button>
                 <button id="saveProductButton" type="submit" form="productForm" class="btn-primary">
@@ -200,9 +334,34 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal Universal -->
+    <div id="universalModal" class="modal-backdrop hidden">
+        <div id="universalModalContent" class="modal-content">
+            <!-- Conteúdo será inserido dinamicamente -->
+        </div>
+    </div>
     
     <!-- Container para modais dinâmicos -->
     <div id="modalPlaceholder"></div>
+
+    <!-- Floating Action Button -->
+    <div id="fabContainer" class="fab-container">
+        <button id="mainFab" class="fab-main">
+            <i class="fas fa-plus"></i>
+        </button>
+        <div id="fabMenu" class="fab-menu hidden">
+            <button class="fab-item" data-action="new-sale" title="Nova Venda">
+                <i class="fas fa-cash-register"></i>
+            </button>
+            <button class="fab-item" data-action="new-product" title="Novo Produto">
+                <i class="fas fa-box"></i>
+            </button>
+            <button class="fab-item" data-action="new-customer" title="Novo Cliente">
+                <i class="fas fa-user-plus"></i>
+            </button>
+        </div>
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -219,123 +378,642 @@
     <script src="js/main.js"></script>
 
     <style>
-        /* Estilos específicos para alertas temporários */
-        .temporary-alerts-container {
+        /* Estilos adicionais para melhor responsividade e UX */
+        .loading-screen {
             position: fixed;
-            top: 1rem;
-            right: 1rem;
-            z-index: 200;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            max-width: 24rem;
-            pointer-events: none;
-        }
-        
-        .temporary-alert {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            transform: translateX(100%);
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .loading-screen.hidden {
             opacity: 0;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            backdrop-filter: blur(10px);
-            pointer-events: auto;
+            visibility: hidden;
         }
-        
-        .temporary-alert.show {
-            transform: translateX(0);
-            opacity: 1;
+
+        .loading-content {
+            text-align: center;
+            color: #F1F5F9;
         }
-        
-        .temporary-alert-info {
-            background: rgba(56, 189, 248, 0.9);
-            border-left: 4px solid #38BDF8;
-            color: white;
-        }
-        
-        .temporary-alert-success {
-            background: rgba(16, 185, 129, 0.9);
-            border-left: 4px solid #10B981;
-            color: white;
-        }
-        
-        .temporary-alert-warning {
-            background: rgba(245, 158, 11, 0.9);
-            border-left: 4px solid #F59E0B;
-            color: white;
-        }
-        
-        .temporary-alert-error {
-            background: rgba(239, 68, 68, 0.9);
-            border-left: 4px solid #EF4444;
-            color: white;
-        }
-        
-        .temporary-alert-content {
+
+        .loading-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            border-radius: 20px;
             display: flex;
             align-items: center;
-            flex: 1;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            font-size: 2rem;
+            color: white;
+            animation: pulse 2s infinite;
         }
-        
-        .temporary-alert-icon {
-            margin-right: 0.75rem;
-            font-size: 1.25rem;
+
+        .loading-text h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        
-        .temporary-alert-message {
-            font-weight: 500;
+
+        .loading-text p {
+            color: #94A3B8;
+            margin-bottom: 2rem;
         }
-        
-        .temporary-alert-close {
+
+        .loading-spinner .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(56, 189, 248, 0.3);
+            border-top: 3px solid #38BDF8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        .mobile-menu-toggle {
             background: none;
             border: none;
-            color: rgba(255, 255, 255, 0.8);
+            color: #94A3B8;
+            font-size: 1.5rem;
             cursor: pointer;
-            font-size: 1.25rem;
-            padding: 0.25rem;
-            margin-left: 0.75rem;
-            transition: color 0.2s ease;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
         }
-        
-        .temporary-alert-close:hover {
+
+        .mobile-menu-toggle:hover {
+            background: rgba(51, 65, 85, 0.5);
+            color: #F1F5F9;
+        }
+
+        .header-logo-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            border-radius: 10px;
             color: white;
+            font-size: 1.25rem;
+            margin-right: 0.75rem;
         }
 
-        /* Estilos para garantir responsive design */
+        .header-version {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38BDF8;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+
+        .header-search {
+            margin-right: 1rem;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 0.5rem;
+            padding: 0.5rem 2.5rem 0.5rem 1rem;
+            color: #F1F5F9;
+            width: 250px;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #38BDF8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94A3B8;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-right: 1rem;
+        }
+
+        .quick-action-btn {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 0.5rem;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94A3B8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quick-action-btn:hover {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: #38BDF8;
+            color: #38BDF8;
+        }
+
+        .user-chevron {
+            margin-left: 0.5rem;
+            transition: transform 0.2s ease;
+        }
+
+        .user-menu.open .user-chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 39;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .sidebar.mobile-open {
+            transform: translateX(0);
+        }
+
+        .sidebar-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-close {
+            background: none;
+            border: none;
+            color: #94A3B8;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-close:hover {
+            background: rgba(51, 65, 85, 0.5);
+            color: #F1F5F9;
+        }
+
+        .sidebar-stats {
+            margin-top: auto;
+            padding: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 0.5rem;
+        }
+
+        .stat-icon {
+            width: 2rem;
+            height: 2rem;
+            background: rgba(56, 189, 248, 0.2);
+            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #38BDF8;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #94A3B8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #F1F5F9;
+        }
+
+        .sidebar-footer {
+            padding: 1rem;
+            border-top: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .sidebar-version {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #64748B;
+        }
+
+        .page-header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .page-header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .page-header-time {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #94A3B8;
+            font-size: 0.875rem;
+        }
+
+        .content-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            text-align: center;
+        }
+
+        .loading-spinner-container p {
+            margin-top: 1rem;
+            color: #94A3B8;
+        }
+
+        .loading-spinner-large .spinner-large {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(56, 189, 248, 0.3);
+            border-top: 4px solid #38BDF8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .fab-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+
+        .fab-main {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 8px 16px rgba(56, 189, 248, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .fab-main:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 24px rgba(56, 189, 248, 0.4);
+        }
+
+        .fab-menu {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .fab-item {
+            width: 50px;
+            height: 50px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            border-radius: 50%;
+            color: #94A3B8;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .fab-item:hover {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38BDF8;
+            transform: scale(1.1);
+        }
+
+        .modal-lg {
+            max-width: 600px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .form-help {
+            display: block;
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: #64748B;
+        }
+
+        /* Responsividade adicional */
+        @media (max-width: 1024px) {
+            .header-search {
+                display: none;
+            }
+            
+            .search-input {
+                width: 200px;
+            }
+        }
+
         @media (max-width: 768px) {
-            .temporary-alerts-container {
-                right: 0.5rem;
-                left: 0.5rem;
-                max-width: none;
+            .quick-actions {
+                display: none;
+            }
+
+            .page-header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .page-header-right {
+                align-self: flex-end;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .fab-container {
+                bottom: 1rem;
+                right: 1rem;
+            }
+
+            .fab-main {
+                width: 50px;
+                height: 50px;
+                font-size: 1.25rem;
+            }
+
+            .fab-item {
+                width: 45px;
+                height: 45px;
             }
         }
 
-        /* Estilos adicionais para melhor funcionalidade */
-        .hidden {
-            display: none !important;
-        }
-
-        .show {
-            display: block !important;
-        }
-
-        /* Loading animation */
-        .fa-spin {
-            animation: fa-spin 2s infinite linear;
-        }
-
-        @keyframes fa-spin {
-            0% {
-                transform: rotate(0deg);
+        @media (max-width: 480px) {
+            .header {
+                padding: 0 1rem;
             }
-            100% {
-                transform: rotate(360deg);
+
+            .main-content {
+                padding: 1rem;
             }
+
+            .page-header {
+                padding: 1rem;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                max-width: calc(100vw - 2rem);
+            }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
     </style>
+
+    <script>
+        // Inicialização da interface
+        document.addEventListener('DOMContentLoaded', function() {
+            // Esconder loading screen após carregar
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hidden');
+            }, 1500);
+
+            // Atualizar data atual
+            updateCurrentDate();
+            setInterval(updateCurrentDate, 60000);
+
+            // Inicializar tempo online
+            initializeOnlineTime();
+
+            // Configurar mobile menu
+            setupMobileMenu();
+
+            // Configurar FAB
+            setupFloatingActionButton();
+
+            // Configurar busca global
+            setupGlobalSearch();
+
+            // Configurar ações rápidas
+            setupQuickActions();
+        });
+
+        function updateCurrentDate() {
+            const now = new Date();
+            const dateString = now.toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            const element = document.getElementById('currentDate');
+            if (element) {
+                element.textContent = dateString;
+            }
+        }
+
+        function initializeOnlineTime() {
+            const startTime = Date.now();
+            
+            function updateOnlineTime() {
+                const elapsed = Date.now() - startTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                
+                const element = document.getElementById('onlineTime');
+                if (element) {
+                    element.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }
+            
+            setInterval(updateOnlineTime, 1000);
+        }
+
+        function setupMobileMenu() {
+            const toggle = document.getElementById('mobileMenuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const closeBtn = document.getElementById('sidebarCloseButton');
+
+            const openSidebar = () => {
+                sidebar.classList.add('mobile-open');
+                overlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            };
+
+            const closeSidebar = () => {
+                sidebar.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+
+            if (toggle) toggle.addEventListener('click', openSidebar);
+            if (overlay) overlay.addEventListener('click', closeSidebar);
+            if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+        }
+
+        function setupFloatingActionButton() {
+            const mainFab = document.getElementById('mainFab');
+            const fabMenu = document.getElementById('fabMenu');
+
+            if (mainFab && fabMenu) {
+                mainFab.addEventListener('click', () => {
+                    fabMenu.classList.toggle('hidden');
+                });
+
+                // Fechar menu ao clicar fora
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.fab-container')) {
+                        fabMenu.classList.add('hidden');
+                    }
+                });
+
+                // Ações dos itens do FAB
+                document.querySelectorAll('.fab-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const action = e.target.closest('.fab-item').dataset.action;
+                        handleFabAction(action);
+                        fabMenu.classList.add('hidden');
+                    });
+                });
+            }
+        }
+
+        function handleFabAction(action) {
+            switch (action) {
+                case 'new-sale':
+                    window.location.hash = '#registrar-venda';
+                    break;
+                case 'new-product':
+                    if (typeof openProductModal === 'function') {
+                        openProductModal();
+                    }
+                    break;
+                case 'new-customer':
+                    if (typeof showCustomerModal === 'function') {
+                        showCustomerModal();
+                    }
+                    break;
+            }
+        }
+
+        function setupGlobalSearch() {
+            const searchInput = document.getElementById('globalSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', debounce(handleGlobalSearch, 300));
+            }
+        }
+
+        function handleGlobalSearch(e) {
+            const query = e.target.value.trim();
+            if (query.length < 2) return;
+
+            // Implementar busca global aqui
+            console.log('Busca global:', query);
+        }
+
+        function setupQuickActions() {
+            const quickSaleBtn = document.getElementById('quickSaleButton');
+            const quickProductBtn = document.getElementById('quickProductButton');
+
+            if (quickSaleBtn) {
+                quickSaleBtn.addEventListener('click', () => {
+                    window.location.hash = '#registrar-venda';
+                });
+            }
+
+            if (quickProductBtn) {
+                quickProductBtn.addEventListener('click', () => {
+                    if (typeof openProductModal === 'function') {
+                        openProductModal();
+                    }
+                });
+            }
+        }
+
+        function showUserProfile() {
+            // Implementar perfil do usuário
+            console.log('Mostrar perfil do usuário');
+        }
+
+        function showSettings() {
+            window.location.hash = '#config';
+        }
+
+        function showHelp() {
+            // Implementar ajuda
+            console.log('Mostrar ajuda');
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    </script>
 </body>
 </html>
